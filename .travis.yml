@@ -11,9 +11,9 @@ install:
 
 script:
 - go test -race -covermode=atomic -coverprofile=memory.txt ./service/memory
-- memory.txt > coverage.txt
+- cat memory.txt > coverage.txt
 - go test -race -covermode=atomic -coverprofile=redis.txt ./service/redis
-- redis.txt > coverage.txt
+- cat redis.txt > coverage.txt
 
 notifications:
   email: false
