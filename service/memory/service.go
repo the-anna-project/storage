@@ -1,3 +1,5 @@
+// Package memory implements a service to store data in memory. This can be used
+// for development and testing.
 package memory
 
 import (

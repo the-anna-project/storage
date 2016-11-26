@@ -1,3 +1,5 @@
+// Package collection implements services to persist data. The storage
+// collection bundles storage instances to pass them around.
 package collection
 
 import (
