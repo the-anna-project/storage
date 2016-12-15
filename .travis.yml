@@ -10,9 +10,9 @@ install:
   - go build ./...
 
 script:
-- go test -race -covermode=atomic -coverprofile=memory.txt ./service/memory
+- go test -race -covermode=atomic -coverprofile=memory.txt ./memory
 - cat memory.txt >> coverage.txt
-- go test -race -covermode=atomic -coverprofile=redis.txt ./service/redis
+- go test -race -covermode=atomic -coverprofile=redis.txt ./redis
 - cat redis.txt >> coverage.txt
 
 notifications:
