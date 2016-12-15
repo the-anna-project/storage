@@ -5,20 +5,18 @@ import (
 	"github.com/rafaeljusto/redigomock"
 )
 
-// redis
-
 // DialConfig represents the configuration used to create a new redis
 // dialer.
 type DialConfig struct {
-	// Addr represents the address used to connect to a redis server.
-	Addr string
+	// Address represents the address used to connect to a redis server.
+	Address string
 }
 
 // DefaultDialConfig provides a default configuration to create a new
 // redis dialer by best effort.
 func DefaultDialConfig() DialConfig {
 	newConfig := DialConfig{
-		Addr: "127.0.0.1:6379",
+		Address: "127.0.0.1:6379",
 	}
 
 	return newConfig
@@ -27,7 +25,7 @@ func DefaultDialConfig() DialConfig {
 // NewDial creates a new configured redis dialer.
 func NewDial(config DialConfig) func() (redis.Conn, error) {
 	newDial := func() (redis.Conn, error) {
-		c, err := redis.Dial("tcp", config.Addr)
+		c, err := redis.Dial("tcp", config.Address)
 		if err != nil {
 			return nil, err
 		}

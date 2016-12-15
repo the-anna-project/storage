@@ -1,49 +1,28 @@
 package redis
 
 import (
-	"os"
 	"reflect"
 	"testing"
 
 	"github.com/garyburd/redigo/redis"
-	kitlog "github.com/go-kit/kit/log"
 	"github.com/rafaeljusto/redigomock"
 
-	servicecollection "github.com/the-anna-project/collection/collection"
-	"github.com/the-anna-project/id"
-	memoryinstrumentor "github.com/the-anna-project/instrumentor/memory"
-	"github.com/the-anna-project/log"
-	"github.com/the-anna-project/random"
-	servicespec "github.com/the-anna-project/spec/service"
+	"github.com/the-anna-project/storage"
 )
 
-func testMustNewStorageWithConn(t *testing.T, c redis.Conn) servicespec.StorageService {
-	storageService := New()
+func testMustNewStorageWithConn(t *testing.T, c redis.Conn) storage.Service {
 	newPoolConfig := DefaultPoolConfig()
 	newMockDialConfig := DefaultMockDialConfig()
 	newMockDialConfig.RedisConn = c
 	newPoolConfig.Dial = NewMockDial(newMockDialConfig)
-	newPool := NewPool(newPoolConfig)
-	storageService.SetPool(newPool)
+	pool := NewPool(newPoolConfig)
 
-	idService := id.New()
-	instrumentorService := memoryinstrumentor.New()
-	logService := log.New()
-	logService.SetRootLogger(kitlog.NewLogfmtLogger(kitlog.NewSyncWriter(os.Stderr)))
-	randomService := random.New()
-
-	serviceCollection := servicecollection.New()
-	serviceCollection.SetIDService(idService)
-	serviceCollection.SetInstrumentorService(instrumentorService)
-	serviceCollection.SetLogService(logService)
-	serviceCollection.SetRandomService(randomService)
-
-	idService.SetServiceCollection(serviceCollection)
-	instrumentorService.SetServiceCollection(serviceCollection)
-	logService.SetServiceCollection(serviceCollection)
-	randomService.SetServiceCollection(serviceCollection)
-	storageService.SetServiceCollection(serviceCollection)
-
+	storageConfig := DefaultConfig()
+	storageConfig.Pool = pool
+	storageService, err := New(storageConfig)
+	if err != nil {
+		panic(err)
+	}
 	storageService.Boot()
 
 	return storageService
