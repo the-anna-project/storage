@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/the-anna-project/storage"
-	"github.com/the-anna-project/storage/redis"
+	storageerror "github.com/the-anna-project/storage/error"
 )
 
 func testNewStorage() storage.Service {
@@ -842,7 +842,7 @@ func Test_StringStorage_GetSetGet(t *testing.T) {
 	defer newStorage.Shutdown()
 
 	_, err := newStorage.Get("foo")
-	if !redis.IsNotFound(err) {
+	if !storageerror.IsNotFound(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 
@@ -883,7 +883,7 @@ func Test_StringStorage_SetGetRemoveGet(t *testing.T) {
 	}
 
 	_, err = newStorage.Get("foo")
-	if !redis.IsNotFound(err) {
+	if !storageerror.IsNotFound(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
