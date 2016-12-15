@@ -2,43 +2,21 @@ package memory
 
 import (
 	"fmt"
-	"os"
 	"reflect"
 	"sync"
 	"testing"
 	"time"
 
-	kitlog "github.com/go-kit/kit/log"
-
-	servicecollection "github.com/the-anna-project/collection/collection"
-	"github.com/the-anna-project/id"
-	memoryinstrumentor "github.com/the-anna-project/instrumentor/memory"
-	"github.com/the-anna-project/log"
-	"github.com/the-anna-project/random"
-	servicespec "github.com/the-anna-project/spec/service"
-	storagecollection "github.com/the-anna-project/storage/collection"
+	"github.com/the-anna-project/storage"
+	"github.com/the-anna-project/storage/redis"
 )
 
-func testNewStorage() servicespec.StorageService {
-	idService := id.New()
-	instrumentorService := memoryinstrumentor.New()
-	logService := log.New()
-	logService.SetRootLogger(kitlog.NewLogfmtLogger(kitlog.NewSyncWriter(os.Stderr)))
-	randomService := random.New()
-	storageService := New()
-
-	serviceCollection := servicecollection.New()
-	serviceCollection.SetIDService(idService)
-	serviceCollection.SetInstrumentorService(instrumentorService)
-	serviceCollection.SetLogService(logService)
-	serviceCollection.SetRandomService(randomService)
-
-	idService.SetServiceCollection(serviceCollection)
-	instrumentorService.SetServiceCollection(serviceCollection)
-	logService.SetServiceCollection(serviceCollection)
-	randomService.SetServiceCollection(serviceCollection)
-	storageService.SetServiceCollection(serviceCollection)
-
+func testNewStorage() storage.Service {
+	storageConfig := DefaultConfig()
+	storageService, err := New(storageConfig)
+	if err != nil {
+		panic(err)
+	}
 	storageService.Boot()
 
 	return storageService
@@ -864,7 +842,7 @@ func Test_StringStorage_GetSetGet(t *testing.T) {
 	defer newStorage.Shutdown()
 
 	_, err := newStorage.Get("foo")
-	if !storagecollection.IsNotFound(err) {
+	if !redis.IsNotFound(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 
@@ -905,7 +883,7 @@ func Test_StringStorage_SetGetRemoveGet(t *testing.T) {
 	}
 
 	_, err = newStorage.Get("foo")
-	if !storagecollection.IsNotFound(err) {
+	if !redis.IsNotFound(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
@@ -942,7 +920,7 @@ func Test_StringStorage_WalkSetRemove(t *testing.T) {
 	if count2 != 1 {
 		t.Fatal("expected", 1, "got", count2)
 	}
-	if element2 != "prefix:test-key" {
+	if element2 != "memory:test-key" {
 		t.Fatal("expected", "prefix:test-key", "got", element2)
 	}
 
