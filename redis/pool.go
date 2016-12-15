@@ -51,3 +51,13 @@ func NewPool(config PoolConfig) *redis.Pool {
 
 	return newPool
 }
+
+func NewPoolWithAddress(address string) *redis.Pool {
+	newDialConfig := DefaultDialConfig()
+	newDialConfig.Address = address
+	newPoolConfig := DefaultPoolConfig()
+	newPoolConfig.Dial = NewDial(newDialConfig)
+	newPool := NewPool(newPoolConfig)
+
+	return newPool
+}

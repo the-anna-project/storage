@@ -9,64 +9,134 @@ import (
 	"github.com/cenk/backoff"
 	"github.com/garyburd/redigo/redis"
 
-	objectspec "github.com/the-anna-project/spec/object"
-	servicespec "github.com/the-anna-project/spec/service"
+	"github.com/the-anna-project/instrumentor"
+	memoryinstrumentor "github.com/the-anna-project/instrumentor/memory"
+	"github.com/the-anna-project/logger"
+	"github.com/the-anna-project/storage"
 )
 
-// New creates a new redis storage service.
-func New() servicespec.StorageService {
-	newDialConfig := DefaultDialConfig()
-	newDialConfig.Addr = "127.0.0.1:6379"
-	newPoolConfig := DefaultPoolConfig()
-	newPoolConfig.Dial = NewDial(newDialConfig)
-	newPool := NewPool(newPoolConfig)
+// Config represents the configuration used to create a new storage service.
+type Config struct {
+	// Dependencies.
+	BackoffFactory func() storage.Backoff
+	Logger         logger.Service
+	Instrumentor   instrumentor.Service
 
-	return &service{
+	// Settings.
+	Address string
+	Pool    *redis.Pool
+	Prefix  string
+}
+
+// DefaultConfig provides a default configuration to create a new storage
+// service by best effort.
+func DefaultConfig() Config {
+	var err error
+
+	var instrumentorService instrumentor.Service
+	{
+		instrumentorConfig := memoryinstrumentor.DefaultConfig()
+		instrumentorService, err = memoryinstrumentor.New(instrumentorConfig)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	var loggerService logger.Service
+	{
+		loggerConfig := logger.DefaultConfig()
+		loggerService, err = logger.New(loggerConfig)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	config := Config{
 		// Dependencies.
-		serviceCollection: nil,
-
-		// Settings.
-		backoffFactory: func() objectspec.Backoff {
+		BackoffFactory: func() storage.Backoff {
 			return &backoff.StopBackOff{}
 		},
-		pool:         newPool,
-		prefix:       "prefix",
-		metadata:     map[string]string{},
-		shutdownOnce: sync.Once{},
+		Instrumentor: instrumentorService,
+		Logger:       loggerService,
+
+		// Settings.
+		Address: "",
+		Pool:    nil,
+		Prefix:  "prefix",
 	}
+
+	return config
+}
+
+// New creates a new storage service.
+func New(config Config) (storage.Service, error) {
+	// Dependencies.
+	if config.BackoffFactory == nil {
+		return nil, maskAnyf(invalidConfigError, "backoff factory must not be empty")
+	}
+	if config.Instrumentor == nil {
+		return nil, maskAnyf(invalidConfigError, "instrumentor must not be empty")
+	}
+	if config.Logger == nil {
+		return nil, maskAnyf(invalidConfigError, "logger must not be empty")
+	}
+
+	// Settings.
+	if config.Address == "" && config.Pool == nil {
+		return nil, maskAnyf(invalidConfigError, "either address or pool must be given")
+	}
+
+	var pool *redis.Pool
+	if config.Address == "" {
+		pool = config.Pool
+	}
+	if config.Pool == nil {
+		pool = NewPoolWithAddress(config.Address)
+	}
+
+	newService := &service{
+		// Dependencies.
+		backoffFactory: config.BackoffFactory,
+		instrumentor:   config.Instrumentor,
+		logger:         config.Logger,
+
+		// Internals.
+		bootOnce:     sync.Once{},
+		closer:       make(chan struct{}, 1),
+		pool:         pool,
+		shutdownOnce: sync.Once{},
+
+		// Settings.
+		prefix: config.Prefix,
+	}
+
+	return newService, nil
 }
 
 type service struct {
 	// Dependencies.
+	backoffFactory func() storage.Backoff
+	instrumentor   instrumentor.Service
+	logger         logger.Service
 
-	serviceCollection servicespec.ServiceCollection
+	// Internals.
+	bootOnce     sync.Once
+	closer       chan struct{}
+	pool         *redis.Pool
+	shutdownOnce sync.Once
 
 	// Settings.
-
-	// backoffFactory is supposed to be able to create a new spec.Backoff. Retry
-	// implementations can make use of this to decide when to retry.
-	backoffFactory func() objectspec.Backoff
-	metadata       map[string]string
-	pool           *redis.Pool
-	prefix         string
-	shutdownOnce   sync.Once
+	prefix string
 }
 
 func (s *service) Boot() {
-	id, err := s.Service().ID().New()
-	if err != nil {
-		panic(err)
-	}
-	s.metadata = map[string]string{
-		"id":   id,
-		"kind": "redis",
-		"name": "storage",
-		"type": "service",
-	}
+	s.bootOnce.Do(func() {
+		// Service specific boot logic goes here.
+	})
 }
 
 func (s *service) Get(key string) (string, error) {
-	s.Service().Log().Line("func", "Get")
+	s.logger.Log("func", "Get")
 
 	errors := make(chan error, 1)
 
@@ -91,7 +161,7 @@ func (s *service) Get(key string) (string, error) {
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.Service().Instrumentor().WrapFunc("Get", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.WrapFunc("Get", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return "", maskAny(err)
 	}
@@ -109,7 +179,7 @@ func (s *service) Get(key string) (string, error) {
 }
 
 func (s *service) GetAllFromSet(key string) ([]string, error) {
-	s.Service().Log().Line("func", "GetAllFromSet")
+	s.logger.Log("func", "GetAllFromSet")
 
 	var result []string
 	action := func() error {
@@ -128,7 +198,7 @@ func (s *service) GetAllFromSet(key string) ([]string, error) {
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.Service().Instrumentor().WrapFunc("GetAllFromSet", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.WrapFunc("GetAllFromSet", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return nil, maskAny(err)
 	}
@@ -137,7 +207,7 @@ func (s *service) GetAllFromSet(key string) ([]string, error) {
 }
 
 func (s *service) GetElementsByScore(key string, score float64, maxElements int) ([]string, error) {
-	s.Service().Log().Line("func", "GetElementsByScore")
+	s.logger.Log("func", "GetElementsByScore")
 
 	var result []string
 	var err error
@@ -153,7 +223,7 @@ func (s *service) GetElementsByScore(key string, score float64, maxElements int)
 		return nil
 	}
 
-	err = backoff.RetryNotify(s.Service().Instrumentor().WrapFunc("GetElementsByScore", action), s.backoffFactory(), s.retryErrorLogger)
+	err = backoff.RetryNotify(s.instrumentor.WrapFunc("GetElementsByScore", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return nil, maskAny(err)
 	}
@@ -162,7 +232,7 @@ func (s *service) GetElementsByScore(key string, score float64, maxElements int)
 }
 
 func (s *service) GetHighestScoredElements(key string, maxElements int) ([]string, error) {
-	s.Service().Log().Line("func", "GetHighestScoredElements")
+	s.logger.Log("func", "GetHighestScoredElements")
 
 	var result []string
 	var err error
@@ -178,7 +248,7 @@ func (s *service) GetHighestScoredElements(key string, maxElements int) ([]strin
 		return nil
 	}
 
-	err = backoff.RetryNotify(s.Service().Instrumentor().WrapFunc("GetHighestScoredElements", action), s.backoffFactory(), s.retryErrorLogger)
+	err = backoff.RetryNotify(s.instrumentor.WrapFunc("GetHighestScoredElements", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return nil, maskAny(err)
 	}
@@ -187,7 +257,7 @@ func (s *service) GetHighestScoredElements(key string, maxElements int) ([]strin
 }
 
 func (s *service) GetRandom() (string, error) {
-	s.Service().Log().Line("func", "GetRandom")
+	s.logger.Log("func", "GetRandom")
 
 	var result string
 	action := func() error {
@@ -203,7 +273,7 @@ func (s *service) GetRandom() (string, error) {
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.Service().Instrumentor().WrapFunc("GetRandom", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.WrapFunc("GetRandom", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return "", maskAny(err)
 	}
@@ -212,7 +282,7 @@ func (s *service) GetRandom() (string, error) {
 }
 
 func (s *service) GetStringMap(key string) (map[string]string, error) {
-	s.Service().Log().Line("func", "GetStringMap")
+	s.logger.Log("func", "GetStringMap")
 
 	var result map[string]string
 	var err error
@@ -228,7 +298,7 @@ func (s *service) GetStringMap(key string) (map[string]string, error) {
 		return nil
 	}
 
-	err = backoff.RetryNotify(s.Service().Instrumentor().WrapFunc("GetStringMap", action), s.backoffFactory(), s.retryErrorLogger)
+	err = backoff.RetryNotify(s.instrumentor.WrapFunc("GetStringMap", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return nil, maskAny(err)
 	}
@@ -236,12 +306,8 @@ func (s *service) GetStringMap(key string) (map[string]string, error) {
 	return result, nil
 }
 
-func (s *service) Metadata() map[string]string {
-	return s.metadata
-}
-
 func (s *service) PopFromList(key string) (string, error) {
-	s.Service().Log().Line("func", "PopFromList")
+	s.logger.Log("func", "PopFromList")
 
 	var result string
 	action := func() error {
@@ -261,7 +327,7 @@ func (s *service) PopFromList(key string) (string, error) {
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.Service().Instrumentor().WrapFunc("PopFromList", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.WrapFunc("PopFromList", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return "", maskAny(err)
 	}
@@ -270,7 +336,7 @@ func (s *service) PopFromList(key string) (string, error) {
 }
 
 func (s *service) PushToList(key string, element string) error {
-	s.Service().Log().Line("func", "PushToList")
+	s.logger.Log("func", "PushToList")
 
 	action := func() error {
 		conn := s.pool.Get()
@@ -284,7 +350,7 @@ func (s *service) PushToList(key string, element string) error {
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.Service().Instrumentor().WrapFunc("PushToList", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.WrapFunc("PushToList", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -293,7 +359,7 @@ func (s *service) PushToList(key string, element string) error {
 }
 
 func (s *service) PushToSet(key string, element string) error {
-	s.Service().Log().Line("func", "PushToSet")
+	s.logger.Log("func", "PushToSet")
 
 	action := func() error {
 		conn := s.pool.Get()
@@ -307,7 +373,7 @@ func (s *service) PushToSet(key string, element string) error {
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.Service().Instrumentor().WrapFunc("PushToSet", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.WrapFunc("PushToSet", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -316,7 +382,7 @@ func (s *service) PushToSet(key string, element string) error {
 }
 
 func (s *service) Remove(key string) error {
-	s.Service().Log().Line("func", "Remove")
+	s.logger.Log("func", "Remove")
 
 	action := func() error {
 		conn := s.pool.Get()
@@ -330,7 +396,7 @@ func (s *service) Remove(key string) error {
 		return nil
 	}
 
-	err := backoff.Retry(s.Service().Instrumentor().WrapFunc("Remove", action), s.backoffFactory())
+	err := backoff.Retry(s.instrumentor.WrapFunc("Remove", action), s.backoffFactory())
 	if err != nil {
 		return maskAny(err)
 	}
@@ -339,7 +405,7 @@ func (s *service) Remove(key string) error {
 }
 
 func (s *service) RemoveFromSet(key string, element string) error {
-	s.Service().Log().Line("func", "RemoveFromSet")
+	s.logger.Log("func", "RemoveFromSet")
 
 	action := func() error {
 		conn := s.pool.Get()
@@ -353,7 +419,7 @@ func (s *service) RemoveFromSet(key string, element string) error {
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.Service().Instrumentor().WrapFunc("RemoveFromSet", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.WrapFunc("RemoveFromSet", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -362,7 +428,7 @@ func (s *service) RemoveFromSet(key string, element string) error {
 }
 
 func (s *service) RemoveScoredElement(key string, element string) error {
-	s.Service().Log().Line("func", "RemoveScoredElement")
+	s.logger.Log("func", "RemoveScoredElement")
 
 	action := func() error {
 		conn := s.pool.Get()
@@ -376,7 +442,7 @@ func (s *service) RemoveScoredElement(key string, element string) error {
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.Service().Instrumentor().WrapFunc("RemoveScoredElement", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.WrapFunc("RemoveScoredElement", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -384,12 +450,8 @@ func (s *service) RemoveScoredElement(key string, element string) error {
 	return nil
 }
 
-func (s *service) Service() servicespec.ServiceCollection {
-	return s.serviceCollection
-}
-
 func (s *service) Set(key, value string) error {
-	s.Service().Log().Line("func", "Set")
+	s.logger.Log("func", "Set")
 
 	action := func() error {
 		conn := s.pool.Get()
@@ -407,7 +469,7 @@ func (s *service) Set(key, value string) error {
 		return nil
 	}
 
-	err := backoff.Retry(s.Service().Instrumentor().WrapFunc("Set", action), s.backoffFactory())
+	err := backoff.Retry(s.instrumentor.WrapFunc("Set", action), s.backoffFactory())
 	if err != nil {
 		return maskAny(err)
 	}
@@ -415,12 +477,8 @@ func (s *service) Set(key, value string) error {
 	return nil
 }
 
-func (s *service) SetBackoffFactory(bf func() objectspec.Backoff) {
-	s.backoffFactory = bf
-}
-
 func (s *service) SetElementByScore(key, element string, score float64) error {
-	s.Service().Log().Line("func", "SetElementByScore")
+	s.logger.Log("func", "SetElementByScore")
 
 	action := func() error {
 		conn := s.pool.Get()
@@ -434,7 +492,7 @@ func (s *service) SetElementByScore(key, element string, score float64) error {
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.Service().Instrumentor().WrapFunc("SetElementByScore", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.WrapFunc("SetElementByScore", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -442,20 +500,8 @@ func (s *service) SetElementByScore(key, element string, score float64) error {
 	return nil
 }
 
-func (s *service) SetPool(pool *redis.Pool) {
-	s.pool = pool
-}
-
-func (s *service) SetPrefix(prefix string) {
-	s.prefix = prefix
-}
-
-func (s *service) SetServiceCollection(serviceCollection servicespec.ServiceCollection) {
-	s.serviceCollection = serviceCollection
-}
-
 func (s *service) SetStringMap(key string, stringMap map[string]string) error {
-	s.Service().Log().Line("func", "SetStringMap")
+	s.logger.Log("func", "SetStringMap")
 
 	action := func() error {
 		conn := s.pool.Get()
@@ -473,7 +519,7 @@ func (s *service) SetStringMap(key string, stringMap map[string]string) error {
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.Service().Instrumentor().WrapFunc("SetStringMap", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.WrapFunc("SetStringMap", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -482,7 +528,7 @@ func (s *service) SetStringMap(key string, stringMap map[string]string) error {
 }
 
 func (s *service) Shutdown() {
-	s.Service().Log().Line("func", "Shutdown")
+	s.logger.Log("func", "Shutdown")
 
 	s.shutdownOnce.Do(func() {
 		s.pool.Close()
@@ -490,7 +536,7 @@ func (s *service) Shutdown() {
 }
 
 func (s *service) WalkKeys(glob string, closer <-chan struct{}, cb func(key string) error) error {
-	s.Service().Log().Line("func", "WalkKeys")
+	s.logger.Log("func", "WalkKeys")
 
 	action := func() error {
 		conn := s.pool.Get()
@@ -540,7 +586,7 @@ func (s *service) WalkKeys(glob string, closer <-chan struct{}, cb func(key stri
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.Service().Instrumentor().WrapFunc("WalkKeys", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.WrapFunc("WalkKeys", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -549,7 +595,7 @@ func (s *service) WalkKeys(glob string, closer <-chan struct{}, cb func(key stri
 }
 
 func (s *service) WalkScoredSet(key string, closer <-chan struct{}, cb func(element string, score float64) error) error {
-	s.Service().Log().Line("func", "WalkScoredSet")
+	s.logger.Log("func", "WalkScoredSet")
 
 	action := func() error {
 		conn := s.pool.Get()
@@ -607,7 +653,7 @@ func (s *service) WalkScoredSet(key string, closer <-chan struct{}, cb func(elem
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.Service().Instrumentor().WrapFunc("WalkScoredSet", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.WrapFunc("WalkScoredSet", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -616,7 +662,7 @@ func (s *service) WalkScoredSet(key string, closer <-chan struct{}, cb func(elem
 }
 
 func (s *service) WalkSet(key string, closer <-chan struct{}, cb func(element string) error) error {
-	s.Service().Log().Line("func", "WalkSet")
+	s.logger.Log("func", "WalkSet")
 
 	action := func() error {
 		conn := s.pool.Get()
@@ -666,7 +712,7 @@ func (s *service) WalkSet(key string, closer <-chan struct{}, cb func(element st
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.Service().Instrumentor().WrapFunc("WalkSet", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.WrapFunc("WalkSet", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return maskAny(err)
 	}

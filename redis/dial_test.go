@@ -7,7 +7,7 @@ import (
 
 func Test_Storage_NewDial_Error_Addr(t *testing.T) {
 	newDialConfig := DefaultDialConfig()
-	newDialConfig.Addr = "foo"
+	newDialConfig.Address = "foo"
 	newDial := NewDial(newDialConfig)
 
 	_, err := newDial()

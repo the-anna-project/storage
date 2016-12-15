@@ -23,6 +23,13 @@ func maskAnyf(err error, f string, v ...interface{}) error {
 	return newErr
 }
 
+var invalidConfigError = errgo.New("invalid config")
+
+// IsInvalidConfig asserts invalidConfigError.
+func IsInvalidConfig(err error) bool {
+	return errgo.Cause(err) == invalidConfigError
+}
+
 var notFoundError = errgo.New("not found")
 
 // IsNotFound checks whether a redis response was empty. Therefore it checks for
@@ -33,13 +40,6 @@ var notFoundError = errgo.New("not found")
 func IsNotFound(err error) bool {
 	c := errgo.Cause(err)
 	return c == notFoundError || c == redis.ErrNil
-}
-
-var invalidConfigError = errgo.New("invalid config")
-
-// IsInvalidConfig asserts invalidConfigError.
-func IsInvalidConfig(err error) bool {
-	return errgo.Cause(err) == invalidConfigError
 }
 
 var queryExecutionFailedError = errgo.New("query execution failed")

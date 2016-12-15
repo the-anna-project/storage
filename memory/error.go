@@ -4,8 +4,6 @@ import (
 	"fmt"
 
 	"github.com/juju/errgo"
-
-	"github.com/the-anna-project/storage/service/redis"
 )
 
 var (
@@ -29,11 +27,4 @@ var invalidConfigError = errgo.New("invalid config")
 // IsInvalidConfig asserts invalidConfigError.
 func IsInvalidConfig(err error) bool {
 	return errgo.Cause(err) == invalidConfigError
-}
-
-var notFoundError = errgo.New("not found")
-
-// IsNotFound asserts notFoundError.
-func IsNotFound(err error) bool {
-	return errgo.Cause(err) == notFoundError || redis.IsNotFound(err)
 }
