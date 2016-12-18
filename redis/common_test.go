@@ -3,8 +3,6 @@ package redis
 import (
 	"strings"
 	"testing"
-
-	servicespec "github.com/the-anna-project/spec/service"
 )
 
 // testLogger implements spec.RootLogger and is used to capture logger messages.
@@ -35,7 +33,7 @@ func (tl *testLogger) ResetArgs() {
 	tl.Args = []interface{}{}
 }
 
-func testNewLogger(t *testing.T) servicespec.RootLogger {
+func testNewLogger(t *testing.T) *testLogger {
 	return &testLogger{Args: []interface{}{}}
 }
 
@@ -52,7 +50,7 @@ func Test_RedisStorage_retryErrorLogger(t *testing.T) {
 	}
 
 	storageService.(*service).retryErrorLogger(invalidConfigError, 0)
-	result := logger.(*testLogger).ArgsToString()
+	result := logger.ArgsToString()
 
 	if !strings.Contains(result, invalidConfigError.Error()) {
 		t.Fatal("expected", invalidConfigError.Error(), "got", result)
