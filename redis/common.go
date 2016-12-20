@@ -1,12 +1,13 @@
 package redis
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 )
 
 func (s *service) retryErrorLogger(err error, d time.Duration) {
-	s.logger.Log("msg", "retry error", maskAny(err))
+	s.logger.Log("error", fmt.Sprintf("%#v", maskAny(err)))
 }
 
 func (s *service) withPrefix(keys ...string) string {
