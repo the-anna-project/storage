@@ -16,11 +16,10 @@ import (
 )
 
 const (
-	// KindMemory is the kind to be used to create a collection of memory storage
-	// instances.
+	// KindMemory is the kind to be used to create a memory storage services.
 	KindMemory = "memory"
 	// KindRedis is the kind to be used to create a collection of redis storage
-	// instances.
+	// services.
 	KindRedis = "redis"
 )
 
@@ -36,6 +35,7 @@ type Redis struct {
 	Connection RedisConfig
 	Feature    RedisConfig
 	General    RedisConfig
+	Index      RedisConfig
 	Peer       RedisConfig
 }
 
@@ -185,6 +185,29 @@ func New(config Config) (*Collection, error) {
 		}
 	}
 
+	var indexService storage.Service
+	{
+		switch config.Kind {
+		case KindMemory:
+			indexConfig := memory.DefaultConfig()
+			indexService, err = memory.New(indexConfig)
+			if err != nil {
+				return nil, maskAny(err)
+			}
+		case KindRedis:
+			indexConfig := redis.DefaultConfig()
+			indexConfig.Address = config.Redis.Index.Address
+			indexConfig.BackoffFactory = config.BackoffFactory
+			indexConfig.Instrumentor = config.Instrumentor
+			indexConfig.Logger = config.Logger
+			indexConfig.Prefix = config.Redis.Index.Prefix
+			indexService, err = redis.New(indexConfig)
+			if err != nil {
+				return nil, maskAny(err)
+			}
+		}
+	}
+
 	var peerService storage.Service
 	{
 		switch config.Kind {
@@ -214,9 +237,18 @@ func New(config Config) (*Collection, error) {
 		shutdownOnce: sync.Once{},
 
 		// Public.
+		List: []storage.Service{
+			connectionService,
+			featureService,
+			generalService,
+			indexService,
+			peerService,
+		},
+
 		Connection: connectionService,
 		Feature:    featureService,
 		General:    generalService,
+		Index:      indexService,
 		Peer:       peerService,
 	}
 
@@ -230,46 +262,42 @@ type Collection struct {
 	shutdownOnce sync.Once
 
 	// Public.
+	List []storage.Service
+
 	Connection storage.Service
 	Feature    storage.Service
 	General    storage.Service
+	Index      storage.Service
 	Peer       storage.Service
 }
 
 func (c *Collection) Boot() {
-	go c.Connection.Boot()
-	go c.Feature.Boot()
-	go c.General.Boot()
-	go c.Peer.Boot()
+	c.bootOnce.Do(func() {
+		var wg sync.WaitGroup
+
+		for _, s := range c.List {
+			wg.Add(1)
+			go func() {
+				s.Boot()
+				wg.Done()
+			}()
+		}
+
+		wg.Wait()
+	})
 }
 
 func (c *Collection) Shutdown() {
 	c.shutdownOnce.Do(func() {
 		var wg sync.WaitGroup
 
-		wg.Add(1)
-		go func() {
-			c.Connection.Shutdown()
-			wg.Done()
-		}()
-
-		wg.Add(1)
-		go func() {
-			c.Feature.Shutdown()
-			wg.Done()
-		}()
-
-		wg.Add(1)
-		go func() {
-			c.General.Shutdown()
-			wg.Done()
-		}()
-
-		wg.Add(1)
-		go func() {
-			c.Peer.Shutdown()
-			wg.Done()
-		}()
+		for _, s := range c.List {
+			wg.Add(1)
+			go func() {
+				s.Shutdown()
+				wg.Done()
+			}()
+		}
 
 		wg.Wait()
 	})
