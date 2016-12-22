@@ -37,6 +37,7 @@ type Redis struct {
 	General    RedisConfig
 	Index      RedisConfig
 	Peer       RedisConfig
+	Queue      RedisConfig
 }
 
 // Config represents the configuration used to create a new storage collection.
@@ -231,6 +232,29 @@ func New(config Config) (*Collection, error) {
 		}
 	}
 
+	var queueService storage.Service
+	{
+		switch config.Kind {
+		case KindMemory:
+			queueConfig := memory.DefaultConfig()
+			queueService, err = memory.New(queueConfig)
+			if err != nil {
+				return nil, maskAny(err)
+			}
+		case KindRedis:
+			queueConfig := redis.DefaultConfig()
+			queueConfig.Address = config.Redis.Queue.Address
+			queueConfig.BackoffFactory = config.BackoffFactory
+			queueConfig.Instrumentor = config.Instrumentor
+			queueConfig.Logger = config.Logger
+			queueConfig.Prefix = config.Redis.Queue.Prefix
+			queueService, err = redis.New(queueConfig)
+			if err != nil {
+				return nil, maskAny(err)
+			}
+		}
+	}
+
 	newCollection := &Collection{
 		// Internals.
 		bootOnce:     sync.Once{},
@@ -243,6 +267,7 @@ func New(config Config) (*Collection, error) {
 			generalService,
 			indexService,
 			peerService,
+			queueService,
 		},
 
 		Connection: connectionService,
@@ -250,6 +275,7 @@ func New(config Config) (*Collection, error) {
 		General:    generalService,
 		Index:      indexService,
 		Peer:       peerService,
+		Queue:      queueService,
 	}
 
 	return newCollection, nil
@@ -269,6 +295,7 @@ type Collection struct {
 	General    storage.Service
 	Index      storage.Service
 	Peer       storage.Service
+	Queue      storage.Service
 }
 
 func (c *Collection) Boot() {
