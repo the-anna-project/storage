@@ -32,12 +32,13 @@ type RedisConfig struct {
 
 // Redis is a config bundle of redis configs.
 type Redis struct {
-	Connection RedisConfig
-	Feature    RedisConfig
-	General    RedisConfig
-	Index      RedisConfig
-	Peer       RedisConfig
-	Queue      RedisConfig
+	Connection   RedisConfig
+	Feature      RedisConfig
+	General      RedisConfig
+	Index        RedisConfig
+	Instrumentor RedisConfig
+	Peer         RedisConfig
+	Queue        RedisConfig
 }
 
 // Config represents the configuration used to create a new storage collection.
@@ -209,6 +210,29 @@ func New(config Config) (*Collection, error) {
 		}
 	}
 
+	var instrumentorService storage.Service
+	{
+		switch config.Kind {
+		case KindMemory:
+			instrumentorConfig := memory.DefaultConfig()
+			instrumentorService, err = memory.New(instrumentorConfig)
+			if err != nil {
+				return nil, maskAny(err)
+			}
+		case KindRedis:
+			instrumentorConfig := redis.DefaultConfig()
+			instrumentorConfig.Address = config.Redis.Instrumentor.Address
+			instrumentorConfig.BackoffFactory = config.BackoffFactory
+			instrumentorConfig.Instrumentor = config.Instrumentor
+			instrumentorConfig.Logger = config.Logger
+			instrumentorConfig.Prefix = config.Redis.Instrumentor.Prefix
+			instrumentorService, err = redis.New(instrumentorConfig)
+			if err != nil {
+				return nil, maskAny(err)
+			}
+		}
+	}
+
 	var peerService storage.Service
 	{
 		switch config.Kind {
@@ -266,16 +290,18 @@ func New(config Config) (*Collection, error) {
 			featureService,
 			generalService,
 			indexService,
+			instrumentorService,
 			peerService,
 			queueService,
 		},
 
-		Connection: connectionService,
-		Feature:    featureService,
-		General:    generalService,
-		Index:      indexService,
-		Peer:       peerService,
-		Queue:      queueService,
+		Connection:   connectionService,
+		Feature:      featureService,
+		General:      generalService,
+		Index:        indexService,
+		Instrumentor: instrumentorService,
+		Peer:         peerService,
+		Queue:        queueService,
 	}
 
 	return newCollection, nil
@@ -290,12 +316,13 @@ type Collection struct {
 	// Public.
 	List []storage.Service
 
-	Connection storage.Service
-	Feature    storage.Service
-	General    storage.Service
-	Index      storage.Service
-	Peer       storage.Service
-	Queue      storage.Service
+	Connection   storage.Service
+	Feature      storage.Service
+	General      storage.Service
+	Index        storage.Service
+	Instrumentor storage.Service
+	Peer         storage.Service
+	Queue        storage.Service
 }
 
 func (c *Collection) Boot() {
