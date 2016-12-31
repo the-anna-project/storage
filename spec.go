@@ -121,6 +121,9 @@ type Service interface {
 	// GetRandom returns a random key which was formerly stored within the
 	// underlying storage.
 	GetRandom() (string, error)
+	// Increment increments the floating point number stored under key by the
+	// given value n.
+	Increment(key string, n float64) (float64, error)
 	// Remove deletes the given key.
 	Remove(key string) error
 	// Set stores the given key value pair. Once persisted, value can be
