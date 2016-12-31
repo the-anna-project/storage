@@ -145,6 +145,15 @@ func (s *service) GetStringMap(key string) (map[string]string, error) {
 	return result, nil
 }
 
+func (s *service) Increment(key string, n float64) (float64, error) {
+	result, err := s.redis.Increment(key, n)
+	if err != nil {
+		return 0, maskAny(err)
+	}
+
+	return result, nil
+}
+
 func (s *service) PopFromList(key string) (string, error) {
 	result, err := s.redis.PopFromList(key)
 	if err != nil {

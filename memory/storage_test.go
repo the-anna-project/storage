@@ -860,6 +860,27 @@ func Test_StringStorage_GetSetGet(t *testing.T) {
 	}
 }
 
+func Test_StringStorage_Increment(t *testing.T) {
+	newStorage := testNewStorage()
+	defer newStorage.Shutdown()
+
+	result, err := newStorage.Increment("foo", 2)
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if result != 2 {
+		t.Fatal("expected", 2, "got", result)
+	}
+
+	result, err = newStorage.Increment("foo", 2.223)
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if result != 4.223 {
+		t.Fatal("expected", 4.223, "got", result)
+	}
+}
+
 func Test_StringStorage_SetGetRemoveGet(t *testing.T) {
 	newStorage := testNewStorage()
 	defer newStorage.Shutdown()

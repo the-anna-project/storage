@@ -657,6 +657,41 @@ func Test_StringStorage_GetRandom_Success(t *testing.T) {
 	}
 }
 
+func Test_StringStorage_Increment_Error(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("INCRBYFLOAT", "prefix:foo", float64(2)).ExpectError(queryExecutionFailedError)
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	_, err := newStorage.Increment("foo", 2)
+	if !IsQueryExecutionFailed(err) {
+		t.Fatal("expected", true, "got", false)
+	}
+}
+
+func Test_StringStorage_Increment_Success(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("INCRBYFLOAT", "prefix:foo", float64(2)).Expect([]byte("2")).Expect([]byte("4"))
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	result, err := newStorage.Increment("foo", 2)
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if result != 2 {
+		t.Fatal("expected", 2, "got", result)
+	}
+
+	result, err = newStorage.Increment("foo", 2)
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if result != 4 {
+		t.Fatal("expected", 4, "got", result)
+	}
+}
+
 // Test_StringStorage_Remove_Error ensures that Remove does not throw any not
 // found error.
 func Test_StringStorage_Remove_Error(t *testing.T) {
