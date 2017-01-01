@@ -615,6 +615,36 @@ func Test_StringMapStorage_SetStringMap_Error(t *testing.T) {
 	}
 }
 
+func Test_StringStorage_Exists_False(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("EXISTS", "prefix:foo").Expect(int64(0))
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	ok, err := newStorage.Exists("foo")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if ok {
+		t.Fatal("expected", false, "got", true)
+	}
+}
+
+func Test_StringStorage_Exists_True(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("EXISTS", "prefix:foo").Expect(int64(1))
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	ok, err := newStorage.Exists("foo")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if !ok {
+		t.Fatal("expected", true, "got", false)
+	}
+}
+
 func Test_StringStorage_Get_Success(t *testing.T) {
 	c := redigomock.NewConn()
 	c.Command("GET", "prefix:foo").Expect("bar")

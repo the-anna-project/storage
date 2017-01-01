@@ -134,6 +134,29 @@ func (s *service) Boot() {
 	})
 }
 
+func (s *service) Exists(key string) (bool, error) {
+	var result bool
+	action := func() error {
+		conn := s.pool.Get()
+		defer conn.Close()
+
+		var err error
+		result, err = redis.Bool(conn.Do("EXISTS", s.withPrefix(key)))
+		if err != nil {
+			return maskAny(err)
+		}
+
+		return nil
+	}
+
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("Exists", action), s.backoffFactory(), s.retryErrorLogger)
+	if err != nil {
+		return false, maskAny(err)
+	}
+
+	return result, nil
+}
+
 func (s *service) Get(key string) (string, error) {
 	s.logger.Log("func", "Get")
 
