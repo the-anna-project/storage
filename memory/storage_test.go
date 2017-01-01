@@ -831,6 +831,26 @@ func Test_StringMapStorage_GetSetGet(t *testing.T) {
 	}
 }
 
+func Test_StringStorage_Exists(t *testing.T) {
+	newStorage := testNewStorage()
+	defer newStorage.Shutdown()
+
+	ok, err := newStorage.Exists("foo")
+	if ok {
+		t.Fatal("expected", false, "got", true)
+	}
+
+	err = newStorage.Set("foo", "bar")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+
+	ok, err = newStorage.Exists("foo")
+	if !ok {
+		t.Fatal("expected", true, "got", false)
+	}
+}
+
 func Test_StringStorage_GetRandom(t *testing.T) {
 	newStorage := testNewStorage()
 	defer newStorage.Shutdown()

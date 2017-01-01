@@ -91,6 +91,15 @@ func (s *service) Boot() {
 	})
 }
 
+func (s *service) Exists(key string) (bool, error) {
+	result, err := s.redis.Exists(key)
+	if err != nil {
+		return false, maskAny(err)
+	}
+
+	return result, nil
+}
+
 func (s *service) Get(key string) (string, error) {
 	result, err := s.redis.Get(key)
 	if err != nil {
