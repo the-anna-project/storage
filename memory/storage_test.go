@@ -22,6 +22,119 @@ func testNewStorage() spec.Service {
 	return storageService
 }
 
+func Test_ListStorage_LengthOfList(t *testing.T) {
+	newStorage := testNewStorage()
+	defer newStorage.Shutdown()
+
+	length, err := newStorage.LengthOfList("key")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if length != 0 {
+		t.Fatal("expected", 0, "got", length)
+	}
+
+	err = newStorage.PushToList("key", "element1")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+
+	length, err = newStorage.LengthOfList("key")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if length != 1 {
+		t.Fatal("expected", 1, "got", length)
+	}
+
+	err = newStorage.PushToList("key", "element2")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+
+	length, err = newStorage.LengthOfList("key")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if length != 2 {
+		t.Fatal("expected", 2, "got", length)
+	}
+
+	_, err = newStorage.PopFromList("key")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+
+	length, err = newStorage.LengthOfList("key")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if length != 1 {
+		t.Fatal("expected", 1, "got", length)
+	}
+
+	err = newStorage.RemoveFromList("key", "element2")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+
+	length, err = newStorage.LengthOfList("key")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if length != 0 {
+		t.Fatal("expected", 0, "got", length)
+	}
+}
+
+func Test_ListStorage_PushGetAll(t *testing.T) {
+	newStorage := testNewStorage()
+	defer newStorage.Shutdown()
+
+	var err error
+	err = newStorage.PushToList("key", "element1")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	err = newStorage.PushToList("key", "element2")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	err = newStorage.PushToList("key", "element3")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+
+	elements, err := newStorage.GetAllFromList("key")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+
+	if len(elements) != 3 {
+		t.Fatal("expected", 3, "got", len(elements))
+	}
+	if elements[0] != "element3" {
+		t.Fatal("expected", "element3", "got", elements[0])
+	}
+	if elements[1] != "element2" {
+		t.Fatal("expected", "element2", "got", elements[1])
+	}
+	if elements[2] != "element1" {
+		t.Fatal("expected", "element1", "got", elements[2])
+	}
+
+	// Fetching all elements from a set does not remove the fetched elements from
+	// the set. Multiple calls to GetAllFromList must always return the same
+	// elements.
+	elements, err = newStorage.GetAllFromList("key")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if len(elements) != 3 {
+		t.Fatal("expected", 3, "got", len(elements))
+	}
+}
+
 func Test_ListStorage_PushToListPopFromList(t *testing.T) {
 	newStorage := testNewStorage()
 	defer newStorage.Shutdown()
@@ -702,7 +815,7 @@ func Test_SetStorage_PushGetAll(t *testing.T) {
 	}
 
 	// Fetching all elements from a set does not remove the fetched elements from
-	// the set. Multiple calls to GetAllFromSet always must return the same
+	// the set. Multiple calls to GetAllFromSet must always return the same
 	// elements.
 	elements, err = newStorage.GetAllFromSet("key")
 	if err != nil {

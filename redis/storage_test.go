@@ -28,6 +28,68 @@ func testMustNewStorageWithConn(t *testing.T, c redis.Conn) spec.Service {
 	return storageService
 }
 
+func Test_ListStorage_GetAllFromList_Success(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("LRANGE", "prefix:foo", 0, -1).Expect([]interface{}{
+		[]uint8("one"), []uint8("two"),
+	})
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	values, err := newStorage.GetAllFromList("foo")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if len(values) != 2 {
+		t.Fatal("expected", 1, "got", len(values))
+	}
+	if values[0] != "one" {
+		t.Fatal("expected", "one", "got", values[0])
+	}
+	if values[1] != "two" {
+		t.Fatal("expected", "two", "got", values[2])
+	}
+}
+
+func Test_ListStorage_GetAllFromList_Error(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("LRANGE", "prefix:foo", 0, -1).ExpectError(executionFailedError)
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	_, err := newStorage.GetAllFromList("foo")
+	if !IsExecutionFailed(err) {
+		t.Fatal("expected", true, "got", false)
+	}
+}
+
+func Test_ListStorage_LengthOfList(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("LLEN", "prefix:test-key").Expect(int64(2))
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	length, err := newStorage.LengthOfList("test-key")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if length != 2 {
+		t.Fatal("expected", 2, "got", length)
+	}
+}
+
+func Test_ListStorage_LengthOfList_Error(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("LLEN", "prefix:test-key").ExpectError(executionFailedError)
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	_, err := newStorage.LengthOfList("test-key")
+	if !IsExecutionFailed(err) {
+		t.Fatal("expected", true, "got", false)
+	}
+}
+
 func Test_ListStorage_PopFromList(t *testing.T) {
 	c := redigomock.NewConn()
 	c.Command("BRPOP", "prefix:test-key", 0).Expect([]interface{}{

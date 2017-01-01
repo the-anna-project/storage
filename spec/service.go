@@ -14,6 +14,13 @@ type Service interface {
 	// List.
 	//
 
+	// GetAllFromList returns all elements from the list under key. This method
+	// has an enormous time complexity. GetAllFromList should therefore never be
+	// used against bigger lists, where a big list is characterized by a length
+	// above 100.
+	GetAllFromList(key string) ([]string, error)
+	// LengthOfList returns the number of items within the list given by key.
+	LengthOfList(key string) (int, error)
 	// PopFromList returns the next element from the list identified by the given
 	// key. Note that a list is an ordered sequence of arbitrary elements.
 	// PushToList and PopFromList are operating according to a "first in, first
@@ -72,7 +79,7 @@ type Service interface {
 	// Set.
 	//
 
-	// GetAllFromSet returns all elements from the stored set under key.
+	// GetAllFromSet returns all elements from the set under key.
 	GetAllFromSet(key string) ([]string, error)
 	// PushToSet adds the given element to the set identified by the given key.
 	// Note that a set is an unordered collection of distinct elements.
