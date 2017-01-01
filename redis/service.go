@@ -8,19 +8,18 @@ import (
 
 	"github.com/cenk/backoff"
 	"github.com/garyburd/redigo/redis"
-
 	"github.com/the-anna-project/instrumentor"
-	memoryinstrumentor "github.com/the-anna-project/instrumentor/memory"
 	"github.com/the-anna-project/logger"
-	"github.com/the-anna-project/storage"
+
+	"github.com/the-anna-project/storage/spec"
 )
 
 // Config represents the configuration used to create a new storage service.
 type Config struct {
 	// Dependencies.
-	BackoffFactory func() storage.Backoff
-	Logger         logger.Service
-	Instrumentor   instrumentor.Service
+	BackoffFactory         func() spec.Backoff
+	LoggerService          logger.Service
+	InstrumentorCollection *instrumentor.Collection
 
 	// Settings.
 	Address string
@@ -33,10 +32,10 @@ type Config struct {
 func DefaultConfig() Config {
 	var err error
 
-	var instrumentorService instrumentor.Service
+	var instrumentorCollection *instrumentor.Collection
 	{
-		instrumentorConfig := memoryinstrumentor.DefaultConfig()
-		instrumentorService, err = memoryinstrumentor.New(instrumentorConfig)
+		instrumentorConfig := instrumentor.DefaultCollectionConfig()
+		instrumentorCollection, err = instrumentor.NewCollection(instrumentorConfig)
 		if err != nil {
 			panic(err)
 		}
@@ -53,11 +52,11 @@ func DefaultConfig() Config {
 
 	config := Config{
 		// Dependencies.
-		BackoffFactory: func() storage.Backoff {
+		BackoffFactory: func() spec.Backoff {
 			return &backoff.StopBackOff{}
 		},
-		Instrumentor: instrumentorService,
-		Logger:       loggerService,
+		InstrumentorCollection: instrumentorCollection,
+		LoggerService:          loggerService,
 
 		// Settings.
 		Address: "",
@@ -69,16 +68,16 @@ func DefaultConfig() Config {
 }
 
 // New creates a new storage service.
-func New(config Config) (storage.Service, error) {
+func New(config Config) (spec.Service, error) {
 	// Dependencies.
 	if config.BackoffFactory == nil {
 		return nil, maskAnyf(invalidConfigError, "backoff factory must not be empty")
 	}
-	if config.Instrumentor == nil {
-		return nil, maskAnyf(invalidConfigError, "instrumentor must not be empty")
+	if config.InstrumentorCollection == nil {
+		return nil, maskAnyf(invalidConfigError, "instrumentor collection must not be empty")
 	}
-	if config.Logger == nil {
-		return nil, maskAnyf(invalidConfigError, "logger must not be empty")
+	if config.LoggerService == nil {
+		return nil, maskAnyf(invalidConfigError, "logger service must not be empty")
 	}
 
 	// Settings.
@@ -97,8 +96,8 @@ func New(config Config) (storage.Service, error) {
 	newService := &service{
 		// Dependencies.
 		backoffFactory: config.BackoffFactory,
-		instrumentor:   config.Instrumentor,
-		logger:         config.Logger,
+		instrumentor:   config.InstrumentorCollection,
+		logger:         config.LoggerService,
 
 		// Internals.
 		bootOnce:     sync.Once{},
@@ -115,8 +114,8 @@ func New(config Config) (storage.Service, error) {
 
 type service struct {
 	// Dependencies.
-	backoffFactory func() storage.Backoff
-	instrumentor   instrumentor.Service
+	backoffFactory func() spec.Backoff
+	instrumentor   *instrumentor.Collection
 	logger         logger.Service
 
 	// Internals.
@@ -161,7 +160,7 @@ func (s *service) Get(key string) (string, error) {
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.instrumentor.WrapFunc("Get", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("Get", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return "", maskAny(err)
 	}
@@ -198,7 +197,7 @@ func (s *service) GetAllFromSet(key string) ([]string, error) {
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.instrumentor.WrapFunc("GetAllFromSet", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("GetAllFromSet", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return nil, maskAny(err)
 	}
@@ -223,7 +222,7 @@ func (s *service) GetElementsByScore(key string, score float64, maxElements int)
 		return nil
 	}
 
-	err = backoff.RetryNotify(s.instrumentor.WrapFunc("GetElementsByScore", action), s.backoffFactory(), s.retryErrorLogger)
+	err = backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("GetElementsByScore", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return nil, maskAny(err)
 	}
@@ -248,7 +247,7 @@ func (s *service) GetHighestScoredElements(key string, maxElements int) ([]strin
 		return nil
 	}
 
-	err = backoff.RetryNotify(s.instrumentor.WrapFunc("GetHighestScoredElements", action), s.backoffFactory(), s.retryErrorLogger)
+	err = backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("GetHighestScoredElements", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return nil, maskAny(err)
 	}
@@ -273,7 +272,7 @@ func (s *service) GetRandom() (string, error) {
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.instrumentor.WrapFunc("GetRandom", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("GetRandom", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return "", maskAny(err)
 	}
@@ -298,7 +297,7 @@ func (s *service) GetStringMap(key string) (map[string]string, error) {
 		return nil
 	}
 
-	err = backoff.RetryNotify(s.instrumentor.WrapFunc("GetStringMap", action), s.backoffFactory(), s.retryErrorLogger)
+	err = backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("GetStringMap", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return nil, maskAny(err)
 	}
@@ -321,7 +320,7 @@ func (s *service) Increment(key string, n float64) (float64, error) {
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.instrumentor.WrapFunc("Increment", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("Increment", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return 0, maskAny(err)
 	}
@@ -350,7 +349,7 @@ func (s *service) PopFromList(key string) (string, error) {
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.instrumentor.WrapFunc("PopFromList", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("PopFromList", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return "", maskAny(err)
 	}
@@ -373,7 +372,7 @@ func (s *service) PushToList(key string, element string) error {
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.instrumentor.WrapFunc("PushToList", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("PushToList", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -396,7 +395,7 @@ func (s *service) PushToSet(key string, element string) error {
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.instrumentor.WrapFunc("PushToSet", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("PushToSet", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -419,7 +418,7 @@ func (s *service) Remove(key string) error {
 		return nil
 	}
 
-	err := backoff.Retry(s.instrumentor.WrapFunc("Remove", action), s.backoffFactory())
+	err := backoff.Retry(s.instrumentor.Publisher.WrapFunc("Remove", action), s.backoffFactory())
 	if err != nil {
 		return maskAny(err)
 	}
@@ -442,7 +441,7 @@ func (s *service) RemoveFromSet(key string, element string) error {
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.instrumentor.WrapFunc("RemoveFromSet", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("RemoveFromSet", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -465,7 +464,7 @@ func (s *service) RemoveScoredElement(key string, element string) error {
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.instrumentor.WrapFunc("RemoveScoredElement", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("RemoveScoredElement", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -492,7 +491,7 @@ func (s *service) Set(key, value string) error {
 		return nil
 	}
 
-	err := backoff.Retry(s.instrumentor.WrapFunc("Set", action), s.backoffFactory())
+	err := backoff.Retry(s.instrumentor.Publisher.WrapFunc("Set", action), s.backoffFactory())
 	if err != nil {
 		return maskAny(err)
 	}
@@ -515,7 +514,7 @@ func (s *service) SetElementByScore(key, element string, score float64) error {
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.instrumentor.WrapFunc("SetElementByScore", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("SetElementByScore", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -542,7 +541,7 @@ func (s *service) SetStringMap(key string, stringMap map[string]string) error {
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.instrumentor.WrapFunc("SetStringMap", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("SetStringMap", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -609,7 +608,7 @@ func (s *service) WalkKeys(glob string, closer <-chan struct{}, cb func(key stri
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.instrumentor.WrapFunc("WalkKeys", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("WalkKeys", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -676,7 +675,7 @@ func (s *service) WalkScoredSet(key string, closer <-chan struct{}, cb func(elem
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.instrumentor.WrapFunc("WalkScoredSet", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("WalkScoredSet", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -735,7 +734,7 @@ func (s *service) WalkSet(key string, closer <-chan struct{}, cb func(element st
 		return nil
 	}
 
-	err := backoff.RetryNotify(s.instrumentor.WrapFunc("WalkSet", action), s.backoffFactory(), s.retryErrorLogger)
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("WalkSet", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return maskAny(err)
 	}
