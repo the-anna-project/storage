@@ -104,6 +104,9 @@ type Service interface {
 	// TODO the string naming is weird, key would fit better
 	//
 
+	// Exists checks whether a given key exists. The existence check does not rely
+	// on a specific type.
+	Exists(key string) (bool, error)
 	// Get returns data associated with key. This is a simple key-value
 	// relationship.
 	Get(key string) (string, error)
