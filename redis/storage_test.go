@@ -96,6 +96,30 @@ func Test_ListStorage_PushToList_Error(t *testing.T) {
 	}
 }
 
+func Test_ListStorage_RemoveFromList(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("LREM", "prefix:test-key", 0, "test-element").Expect(int64(1))
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	err := newStorage.RemoveFromList("test-key", "test-element")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+}
+
+func Test_ListStorage_RemoveFromList_Error(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("LREM", "prefix:test-key", 0, "test-element").ExpectError(executionFailedError)
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	err := newStorage.RemoveFromList("test-key", "test-element")
+	if !IsExecutionFailed(err) {
+		t.Fatal("expected", true, "got", false)
+	}
+}
+
 func Test_ScoredSetStorage_GetElementsByScore_Success(t *testing.T) {
 	c := redigomock.NewConn()
 	c.Command("ZREVRANGEBYSCORE", "prefix:foo", 0.8, 0.8, "LIMIT", 0, 3).Expect([]interface{}{[]uint8("bar")})
@@ -587,6 +611,36 @@ func Test_StringMapStorage_SetStringMap_Error(t *testing.T) {
 
 	err := newStorage.SetStringMap("foo", map[string]string{"k1": "v1"})
 	if !IsExecutionFailed(err) {
+		t.Fatal("expected", true, "got", false)
+	}
+}
+
+func Test_StringStorage_Exists_False(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("EXISTS", "prefix:foo").Expect(int64(0))
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	ok, err := newStorage.Exists("foo")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if ok {
+		t.Fatal("expected", false, "got", true)
+	}
+}
+
+func Test_StringStorage_Exists_True(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("EXISTS", "prefix:foo").Expect(int64(1))
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	ok, err := newStorage.Exists("foo")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if !ok {
 		t.Fatal("expected", true, "got", false)
 	}
 }

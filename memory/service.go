@@ -91,6 +91,15 @@ func (s *service) Boot() {
 	})
 }
 
+func (s *service) Exists(key string) (bool, error) {
+	result, err := s.redis.Exists(key)
+	if err != nil {
+		return false, maskAny(err)
+	}
+
+	return result, nil
+}
+
 func (s *service) Get(key string) (string, error) {
 	result, err := s.redis.Get(key)
 	if err != nil {
@@ -183,6 +192,15 @@ func (s *service) PushToSet(key string, element string) error {
 
 func (s *service) Remove(key string) error {
 	err := s.redis.Remove(key)
+	if err != nil {
+		return maskAny(err)
+	}
+
+	return nil
+}
+
+func (s *service) RemoveFromList(key string, element string) error {
+	err := s.redis.RemoveFromList(key, element)
 	if err != nil {
 		return maskAny(err)
 	}

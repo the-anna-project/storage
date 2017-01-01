@@ -87,6 +87,45 @@ func Test_ListStorage_PushToListPopFromList(t *testing.T) {
 	}
 }
 
+func Test_ListStorage_PushToListRemoveFromList(t *testing.T) {
+	newStorage := testNewStorage()
+	defer newStorage.Shutdown()
+
+	var err error
+	err = newStorage.PushToList("key", "element1")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	err = newStorage.PushToList("key", "element2")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	err = newStorage.PushToList("key", "element3")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+
+	var element string
+	element, err = newStorage.PopFromList("key")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if element != "element1" {
+		t.Fatal("expected", "element1", "got", element)
+	}
+	err = newStorage.RemoveFromList("key", "element2")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	element, err = newStorage.PopFromList("key")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if element != "element3" {
+		t.Fatal("expected", "element3", "got", element)
+	}
+}
+
 func Test_ScoredSetStorage_GetElementsByScore(t *testing.T) {
 	testCases := []struct {
 		Key          string
@@ -789,6 +828,26 @@ func Test_StringMapStorage_GetSetGet(t *testing.T) {
 	}
 	if v != "baz" {
 		t.Fatal("expected", "baz", "got", v)
+	}
+}
+
+func Test_StringStorage_Exists(t *testing.T) {
+	newStorage := testNewStorage()
+	defer newStorage.Shutdown()
+
+	ok, err := newStorage.Exists("foo")
+	if ok {
+		t.Fatal("expected", false, "got", true)
+	}
+
+	err = newStorage.Set("foo", "bar")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+
+	ok, err = newStorage.Exists("foo")
+	if !ok {
+		t.Fatal("expected", true, "got", false)
 	}
 }
 
