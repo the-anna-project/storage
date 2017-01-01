@@ -426,6 +426,27 @@ func (s *service) Remove(key string) error {
 	return nil
 }
 
+func (s *service) RemoveFromList(key string, element string) error {
+	action := func() error {
+		conn := s.pool.Get()
+		defer conn.Close()
+
+		_, err := redis.Int(conn.Do("LREM", s.withPrefix(key), 0, element))
+		if err != nil {
+			return maskAny(err)
+		}
+
+		return nil
+	}
+
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("RemoveFromList", action), s.backoffFactory(), s.retryErrorLogger)
+	if err != nil {
+		return maskAny(err)
+	}
+
+	return nil
+}
+
 func (s *service) RemoveFromSet(key string, element string) error {
 	s.logger.Log("func", "RemoveFromSet")
 
