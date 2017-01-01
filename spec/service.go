@@ -26,6 +26,9 @@ type Service interface {
 	// and PopFromList are operating according to a "first in, first out"
 	// primitive.
 	PushToList(key string, element string) error
+	// RemoveFromList removes the given element from the list identified by the
+	// given key.
+	RemoveFromList(key string, element string) error
 
 	//
 	// Scored Set.
