@@ -32,12 +32,12 @@ type RedisConfig struct {
 // Redis is a config bundle of redis configs.
 type Redis struct {
 	Connection   RedisConfig
+	Event        RedisConfig
 	Feature      RedisConfig
 	General      RedisConfig
 	Index        RedisConfig
 	Instrumentor RedisConfig
 	Peer         RedisConfig
-	Queue        RedisConfig
 }
 
 // CollectionConfig represents the configuration used to create a new storage
@@ -135,6 +135,29 @@ func NewCollection(config CollectionConfig) (*Collection, error) {
 			connectionConfig.LoggerService = config.LoggerService
 			connectionConfig.Prefix = config.Redis.Connection.Prefix
 			connectionService, err = redis.New(connectionConfig)
+			if err != nil {
+				return nil, maskAny(err)
+			}
+		}
+	}
+
+	var eventService spec.Service
+	{
+		switch config.Kind {
+		case KindMemory:
+			eventConfig := memory.DefaultConfig()
+			eventService, err = memory.New(eventConfig)
+			if err != nil {
+				return nil, maskAny(err)
+			}
+		case KindRedis:
+			eventConfig := redis.DefaultConfig()
+			eventConfig.Address = config.Redis.Event.Address
+			eventConfig.BackoffFactory = config.BackoffFactory
+			eventConfig.InstrumentorCollection = config.InstrumentorCollection
+			eventConfig.LoggerService = config.LoggerService
+			eventConfig.Prefix = config.Redis.Event.Prefix
+			eventService, err = redis.New(eventConfig)
 			if err != nil {
 				return nil, maskAny(err)
 			}
@@ -256,29 +279,6 @@ func NewCollection(config CollectionConfig) (*Collection, error) {
 		}
 	}
 
-	var queueService spec.Service
-	{
-		switch config.Kind {
-		case KindMemory:
-			queueConfig := memory.DefaultConfig()
-			queueService, err = memory.New(queueConfig)
-			if err != nil {
-				return nil, maskAny(err)
-			}
-		case KindRedis:
-			queueConfig := redis.DefaultConfig()
-			queueConfig.Address = config.Redis.Queue.Address
-			queueConfig.BackoffFactory = config.BackoffFactory
-			queueConfig.InstrumentorCollection = config.InstrumentorCollection
-			queueConfig.LoggerService = config.LoggerService
-			queueConfig.Prefix = config.Redis.Queue.Prefix
-			queueService, err = redis.New(queueConfig)
-			if err != nil {
-				return nil, maskAny(err)
-			}
-		}
-	}
-
 	newCollection := &Collection{
 		// Internals.
 		bootOnce:     sync.Once{},
@@ -287,21 +287,21 @@ func NewCollection(config CollectionConfig) (*Collection, error) {
 		// Public.
 		List: []spec.Service{
 			connectionService,
+			eventService,
 			featureService,
 			generalService,
 			indexService,
 			instrumentorService,
 			peerService,
-			queueService,
 		},
 
 		Connection:   connectionService,
+		Event:        eventService,
 		Feature:      featureService,
 		General:      generalService,
 		Index:        indexService,
 		Instrumentor: instrumentorService,
 		Peer:         peerService,
-		Queue:        queueService,
 	}
 
 	return newCollection, nil
@@ -317,12 +317,12 @@ type Collection struct {
 	List []spec.Service
 
 	Connection   spec.Service
+	Event        spec.Service
 	Feature      spec.Service
 	General      spec.Service
 	Index        spec.Service
 	Instrumentor spec.Service
 	Peer         spec.Service
-	Queue        spec.Service
 }
 
 func (c *Collection) Boot() {

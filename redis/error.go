@@ -42,9 +42,9 @@ func IsNotFound(err error) bool {
 	return c == notFoundError || c == redis.ErrNil
 }
 
-var queryExecutionFailedError = errgo.New("query execution failed")
+var executionFailedError = errgo.New("execution failed")
 
-// IsQueryExecutionFailed asserts queryExecutionFailedError.
-func IsQueryExecutionFailed(err error) bool {
-	return errgo.Cause(err) == queryExecutionFailedError
+// IsExecutionFailed asserts executionFailedError.
+func IsExecutionFailed(err error) bool {
+	return errgo.Cause(err) == executionFailedError
 }

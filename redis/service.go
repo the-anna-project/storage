@@ -342,7 +342,7 @@ func (s *service) PopFromList(key string) (string, error) {
 			return maskAny(err)
 		}
 		if len(strings) != 2 {
-			return maskAnyf(queryExecutionFailedError, "two elements must be returned")
+			return maskAnyf(executionFailedError, "two elements must be returned")
 		}
 		result = strings[1]
 
@@ -485,7 +485,7 @@ func (s *service) Set(key, value string) error {
 		}
 
 		if reply != "OK" {
-			return maskAnyf(queryExecutionFailedError, "SET not executed correctly")
+			return maskAnyf(executionFailedError, "SET not executed correctly")
 		}
 
 		return nil
@@ -535,7 +535,7 @@ func (s *service) SetStringMap(key string, stringMap map[string]string) error {
 		}
 
 		if reply != "OK" {
-			return maskAnyf(queryExecutionFailedError, "HMSET not executed correctly")
+			return maskAnyf(executionFailedError, "HMSET not executed correctly")
 		}
 
 		return nil
