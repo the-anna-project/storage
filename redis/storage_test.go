@@ -48,12 +48,12 @@ func Test_ListStorage_PopFromList(t *testing.T) {
 
 func Test_ListStorage_PopFromList_Error(t *testing.T) {
 	c := redigomock.NewConn()
-	c.Command("BRPOP", "prefix:test-key", 0).ExpectError(queryExecutionFailedError)
+	c.Command("BRPOP", "prefix:test-key", 0).ExpectError(executionFailedError)
 
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	_, err := newStorage.PopFromList("test-key")
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
@@ -67,7 +67,7 @@ func Test_ListStorage_PopFromList_Error_OneReturnValue(t *testing.T) {
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	_, err := newStorage.PopFromList("test-key")
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
@@ -86,12 +86,12 @@ func Test_ListStorage_PushToList(t *testing.T) {
 
 func Test_ListStorage_PushToList_Error(t *testing.T) {
 	c := redigomock.NewConn()
-	c.Command("LPUSH", "prefix:test-key", "test-element").ExpectError(queryExecutionFailedError)
+	c.Command("LPUSH", "prefix:test-key", "test-element").ExpectError(executionFailedError)
 
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	err := newStorage.PushToList("test-key", "test-element")
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
@@ -116,12 +116,12 @@ func Test_ScoredSetStorage_GetElementsByScore_Success(t *testing.T) {
 
 func Test_ScoredSetStorage_GetElementsByScore_Error(t *testing.T) {
 	c := redigomock.NewConn()
-	c.Command("ZREVRANGEBYSCORE", "prefix:foo", 0.8, 0.8, "LIMIT", 0, 3).ExpectError(queryExecutionFailedError)
+	c.Command("ZREVRANGEBYSCORE", "prefix:foo", 0.8, 0.8, "LIMIT", 0, 3).ExpectError(executionFailedError)
 
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	_, err := newStorage.GetElementsByScore("foo", 0.8, 3)
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
@@ -157,12 +157,12 @@ func Test_ScoredSetStorage_GetHighestScoredElements_Success(t *testing.T) {
 
 func Test_ScoredSetStorage_GetHighestScoredElements_Error(t *testing.T) {
 	c := redigomock.NewConn()
-	c.Command("ZREVRANGE", "prefix:foo", 0, 2, "WITHSCORES").ExpectError(queryExecutionFailedError)
+	c.Command("ZREVRANGE", "prefix:foo", 0, 2, "WITHSCORES").ExpectError(executionFailedError)
 
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	_, err := newStorage.GetHighestScoredElements("foo", 2)
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
@@ -181,12 +181,12 @@ func Test_ScoredSetStorage_SetElementByScore_Success(t *testing.T) {
 
 func Test_ScoredSetStorage_SetElementByScore_Error(t *testing.T) {
 	c := redigomock.NewConn()
-	c.Command("ZADD", "prefix:key", 0.8, "element").ExpectError(queryExecutionFailedError)
+	c.Command("ZADD", "prefix:key", 0.8, "element").ExpectError(executionFailedError)
 
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	err := newStorage.SetElementByScore("key", "element", 0.8)
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
@@ -205,12 +205,12 @@ func Test_ScoredSetStorage_RemoveScoredElement(t *testing.T) {
 
 func Test_ScoredSetStorage_RemoveScoredElement_Error(t *testing.T) {
 	c := redigomock.NewConn()
-	c.Command("ZREM", "prefix:test-key", "test-element").ExpectError(queryExecutionFailedError)
+	c.Command("ZREM", "prefix:test-key", "test-element").ExpectError(executionFailedError)
 
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	err := newStorage.RemoveScoredElement("test-key", "test-element")
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
@@ -293,12 +293,12 @@ func Test_ScoredSetStorage_WalkScoredSet_CloseAfterCallback(t *testing.T) {
 
 func Test_ScoredSetStorage_WalkScoredSet_QueryError(t *testing.T) {
 	c := redigomock.NewConn()
-	c.Command("ZSCAN").ExpectError(queryExecutionFailedError)
+	c.Command("ZSCAN").ExpectError(executionFailedError)
 
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	err := newStorage.WalkScoredSet("test-key", nil, nil)
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
@@ -313,21 +313,21 @@ func Test_ScoredSetStorage_WalkScoredSet_CallbackError(t *testing.T) {
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	err := newStorage.WalkScoredSet("test-key", nil, func(element string, score float64) error {
-		return maskAny(queryExecutionFailedError)
+		return maskAny(executionFailedError)
 	})
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
 
 func Test_SetStorage_Error(t *testing.T) {
 	c := redigomock.NewConn()
-	c.Command("SET", "prefix:foo", "bar").ExpectError(queryExecutionFailedError)
+	c.Command("SET", "prefix:foo", "bar").ExpectError(executionFailedError)
 
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	err := newStorage.Set("foo", "bar")
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
@@ -357,12 +357,12 @@ func Test_SetStorage_GetAllFromSet_Success(t *testing.T) {
 
 func Test_SetStorage_GetAllFromSet_Error(t *testing.T) {
 	c := redigomock.NewConn()
-	c.Command("SMEMBERS", "prefix:foo").ExpectError(queryExecutionFailedError)
+	c.Command("SMEMBERS", "prefix:foo").ExpectError(executionFailedError)
 
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	_, err := newStorage.GetAllFromSet("foo")
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
@@ -381,12 +381,12 @@ func Test_SetStorage_PushToSet(t *testing.T) {
 
 func Test_SetStorage_PushToSet_Error(t *testing.T) {
 	c := redigomock.NewConn()
-	c.Command("SADD", "prefix:test-key", "test-element").ExpectError(queryExecutionFailedError)
+	c.Command("SADD", "prefix:test-key", "test-element").ExpectError(executionFailedError)
 
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	err := newStorage.PushToSet("test-key", "test-element")
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
@@ -405,12 +405,12 @@ func Test_SetStorage_RemoveFromSet(t *testing.T) {
 
 func Test_SetStorage_RemoveFromSet_Error(t *testing.T) {
 	c := redigomock.NewConn()
-	c.Command("SREM", "prefix:test-key", "test-element").ExpectError(queryExecutionFailedError)
+	c.Command("SREM", "prefix:test-key", "test-element").ExpectError(executionFailedError)
 
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	err := newStorage.RemoveFromSet("test-key", "test-element")
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
@@ -493,12 +493,12 @@ func Test_SetStorage_WalkSet_CloseAfterCallback(t *testing.T) {
 
 func Test_SetStorage_WalkSet_QueryError(t *testing.T) {
 	c := redigomock.NewConn()
-	c.Command("SSCAN").ExpectError(queryExecutionFailedError)
+	c.Command("SSCAN").ExpectError(executionFailedError)
 
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	err := newStorage.WalkSet("test-key", nil, nil)
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
@@ -513,9 +513,9 @@ func Test_SetStorage_WalkSet_CallbackError(t *testing.T) {
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	err := newStorage.WalkSet("test-key", nil, func(element string) error {
-		return maskAny(queryExecutionFailedError)
+		return maskAny(executionFailedError)
 	})
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
@@ -545,12 +545,12 @@ func Test_StringMapStorage_GetStringMap_Success(t *testing.T) {
 
 func Test_StringMapStorage_GetStringMap_Error(t *testing.T) {
 	c := redigomock.NewConn()
-	c.Command("HGETALL", "prefix:foo").ExpectError(queryExecutionFailedError)
+	c.Command("HGETALL", "prefix:foo").ExpectError(executionFailedError)
 
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	_, err := newStorage.GetStringMap("foo")
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
@@ -574,19 +574,19 @@ func Test_StringMapStorage_SetStringMap_NotOK(t *testing.T) {
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	err := newStorage.SetStringMap("foo", map[string]string{"k1": "v1"})
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
 
 func Test_StringMapStorage_SetStringMap_Error(t *testing.T) {
 	c := redigomock.NewConn()
-	c.Command("HMSET", "prefix:foo", "k1", "v1").ExpectError(queryExecutionFailedError)
+	c.Command("HMSET", "prefix:foo", "k1", "v1").ExpectError(executionFailedError)
 
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	err := newStorage.SetStringMap("foo", map[string]string{"k1": "v1"})
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
@@ -608,12 +608,12 @@ func Test_StringStorage_Get_Success(t *testing.T) {
 
 func Test_StringStorage_Get_Error(t *testing.T) {
 	c := redigomock.NewConn()
-	c.Command("GET", "prefix:foo").ExpectError(queryExecutionFailedError)
+	c.Command("GET", "prefix:foo").ExpectError(executionFailedError)
 
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	_, err := newStorage.Get("foo")
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
@@ -632,12 +632,12 @@ func Test_StringStorage_Get_Error_NotFound(t *testing.T) {
 
 func Test_StringStorage_GetRandom_Error(t *testing.T) {
 	c := redigomock.NewConn()
-	c.Command("RANDOMKEY").ExpectError(queryExecutionFailedError)
+	c.Command("RANDOMKEY").ExpectError(executionFailedError)
 
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	_, err := newStorage.GetRandom()
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
@@ -659,12 +659,12 @@ func Test_StringStorage_GetRandom_Success(t *testing.T) {
 
 func Test_StringStorage_Increment_Error(t *testing.T) {
 	c := redigomock.NewConn()
-	c.Command("INCRBYFLOAT", "prefix:foo", float64(2)).ExpectError(queryExecutionFailedError)
+	c.Command("INCRBYFLOAT", "prefix:foo", float64(2)).ExpectError(executionFailedError)
 
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	_, err := newStorage.Increment("foo", 2)
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
@@ -737,7 +737,7 @@ func Test_StringStorage_Set_NoSuccess(t *testing.T) {
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	err := newStorage.Set("foo", "bar")
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
@@ -831,12 +831,12 @@ func Test_StringStorage_WalkKeys_CloseAfterCallback(t *testing.T) {
 
 func Test_StringStorage_WalkKeys_QueryError(t *testing.T) {
 	c := redigomock.NewConn()
-	c.Command("SCAN").ExpectError(queryExecutionFailedError)
+	c.Command("SCAN").ExpectError(executionFailedError)
 
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	err := newStorage.WalkKeys("*", nil, nil)
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
@@ -851,9 +851,9 @@ func Test_StringStorage_WalkKeys_CallbackError(t *testing.T) {
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	err := newStorage.WalkKeys("*", nil, func(key string) error {
-		return maskAny(queryExecutionFailedError)
+		return maskAny(executionFailedError)
 	})
-	if !IsQueryExecutionFailed(err) {
+	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }
