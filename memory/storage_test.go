@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/the-anna-project/storage"
 	storageerror "github.com/the-anna-project/storage/error"
+	"github.com/the-anna-project/storage/spec"
 )
 
-func testNewStorage() storage.Service {
+func testNewStorage() spec.Service {
 	storageConfig := DefaultConfig()
 	storageService, err := New(storageConfig)
 	if err != nil {

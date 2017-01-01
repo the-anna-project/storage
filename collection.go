@@ -1,18 +1,17 @@
-// Package collection implements services to persist data. The storage
-// collection bundles storage instances to pass them around more easily.
-package collection
+// Package storage implements services to persist data. The storage collection
+// bundles storage instances to pass them around more easily.
+package storage
 
 import (
 	"sync"
 
 	"github.com/cenk/backoff"
 	"github.com/the-anna-project/instrumentor"
-	memoryinstrumentor "github.com/the-anna-project/instrumentor/memory"
 	"github.com/the-anna-project/logger"
 
-	"github.com/the-anna-project/storage"
 	"github.com/the-anna-project/storage/memory"
 	"github.com/the-anna-project/storage/redis"
+	"github.com/the-anna-project/storage/spec"
 )
 
 const (
@@ -41,22 +40,32 @@ type Redis struct {
 	Queue        RedisConfig
 }
 
-// Config represents the configuration used to create a new storage collection.
-type Config struct {
+// CollectionConfig represents the configuration used to create a new storage
+// collection.
+type CollectionConfig struct {
 	// Dependencies.
-	BackoffFactory func() storage.Backoff
-	Logger         logger.Service
-	Instrumentor   instrumentor.Service
+	BackoffFactory         func() spec.Backoff
+	InstrumentorCollection *instrumentor.Collection
+	LoggerService          logger.Service
 
 	// Settings.
 	Kind  string
 	Redis *Redis
 }
 
-// DefaultConfig provides a default configuration to create a new storage
-// collection by best effort.
-func DefaultConfig() Config {
+// DefaultCollectionConfig provides a default configuration to create a new
+// storage collection by best effort.
+func DefaultCollectionConfig() CollectionConfig {
 	var err error
+
+	var instrumentorCollection *instrumentor.Collection
+	{
+		instrumentorConfig := instrumentor.DefaultCollectionConfig()
+		instrumentorCollection, err = instrumentor.NewCollection(instrumentorConfig)
+		if err != nil {
+			panic(err)
+		}
+	}
 
 	var loggerService logger.Service
 	{
@@ -67,22 +76,13 @@ func DefaultConfig() Config {
 		}
 	}
 
-	var instrumentorService instrumentor.Service
-	{
-		instrumentorConfig := memoryinstrumentor.DefaultConfig()
-		instrumentorService, err = memoryinstrumentor.New(instrumentorConfig)
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	config := Config{
+	config := CollectionConfig{
 		// Dependencies.
-		BackoffFactory: func() storage.Backoff {
+		BackoffFactory: func() spec.Backoff {
 			return &backoff.StopBackOff{}
 		},
-		Instrumentor: instrumentorService,
-		Logger:       loggerService,
+		InstrumentorCollection: instrumentorCollection,
+		LoggerService:          loggerService,
 
 		// Settings.
 		Kind:  KindMemory,
@@ -92,17 +92,17 @@ func DefaultConfig() Config {
 	return config
 }
 
-// New creates a new configured storage Collection.
-func New(config Config) (*Collection, error) {
+// NewCollection creates a new configured storage Collection.
+func NewCollection(config CollectionConfig) (*Collection, error) {
 	// Dependencies.
 	if config.BackoffFactory == nil {
 		return nil, maskAnyf(invalidConfigError, "backoff factory must not be empty")
 	}
-	if config.Instrumentor == nil {
-		return nil, maskAnyf(invalidConfigError, "instrumentor must not be empty")
+	if config.InstrumentorCollection == nil {
+		return nil, maskAnyf(invalidConfigError, "instrumentor collection must not be empty")
 	}
-	if config.Logger == nil {
-		return nil, maskAnyf(invalidConfigError, "logger must not be empty")
+	if config.LoggerService == nil {
+		return nil, maskAnyf(invalidConfigError, "logger service must not be empty")
 	}
 
 	// Settings.
@@ -118,7 +118,7 @@ func New(config Config) (*Collection, error) {
 
 	var err error
 
-	var connectionService storage.Service
+	var connectionService spec.Service
 	{
 		switch config.Kind {
 		case KindMemory:
@@ -131,8 +131,8 @@ func New(config Config) (*Collection, error) {
 			connectionConfig := redis.DefaultConfig()
 			connectionConfig.Address = config.Redis.Connection.Address
 			connectionConfig.BackoffFactory = config.BackoffFactory
-			connectionConfig.Instrumentor = config.Instrumentor
-			connectionConfig.Logger = config.Logger
+			connectionConfig.InstrumentorCollection = config.InstrumentorCollection
+			connectionConfig.LoggerService = config.LoggerService
 			connectionConfig.Prefix = config.Redis.Connection.Prefix
 			connectionService, err = redis.New(connectionConfig)
 			if err != nil {
@@ -141,7 +141,7 @@ func New(config Config) (*Collection, error) {
 		}
 	}
 
-	var featureService storage.Service
+	var featureService spec.Service
 	{
 		switch config.Kind {
 		case KindMemory:
@@ -154,8 +154,8 @@ func New(config Config) (*Collection, error) {
 			featureConfig := redis.DefaultConfig()
 			featureConfig.Address = config.Redis.Feature.Address
 			featureConfig.BackoffFactory = config.BackoffFactory
-			featureConfig.Instrumentor = config.Instrumentor
-			featureConfig.Logger = config.Logger
+			featureConfig.InstrumentorCollection = config.InstrumentorCollection
+			featureConfig.LoggerService = config.LoggerService
 			featureConfig.Prefix = config.Redis.Feature.Prefix
 			featureService, err = redis.New(featureConfig)
 			if err != nil {
@@ -164,7 +164,7 @@ func New(config Config) (*Collection, error) {
 		}
 	}
 
-	var generalService storage.Service
+	var generalService spec.Service
 	{
 		switch config.Kind {
 		case KindMemory:
@@ -177,8 +177,8 @@ func New(config Config) (*Collection, error) {
 			generalConfig := redis.DefaultConfig()
 			generalConfig.Address = config.Redis.General.Address
 			generalConfig.BackoffFactory = config.BackoffFactory
-			generalConfig.Instrumentor = config.Instrumentor
-			generalConfig.Logger = config.Logger
+			generalConfig.InstrumentorCollection = config.InstrumentorCollection
+			generalConfig.LoggerService = config.LoggerService
 			generalConfig.Prefix = config.Redis.General.Prefix
 			generalService, err = redis.New(generalConfig)
 			if err != nil {
@@ -187,7 +187,7 @@ func New(config Config) (*Collection, error) {
 		}
 	}
 
-	var indexService storage.Service
+	var indexService spec.Service
 	{
 		switch config.Kind {
 		case KindMemory:
@@ -200,8 +200,8 @@ func New(config Config) (*Collection, error) {
 			indexConfig := redis.DefaultConfig()
 			indexConfig.Address = config.Redis.Index.Address
 			indexConfig.BackoffFactory = config.BackoffFactory
-			indexConfig.Instrumentor = config.Instrumentor
-			indexConfig.Logger = config.Logger
+			indexConfig.InstrumentorCollection = config.InstrumentorCollection
+			indexConfig.LoggerService = config.LoggerService
 			indexConfig.Prefix = config.Redis.Index.Prefix
 			indexService, err = redis.New(indexConfig)
 			if err != nil {
@@ -210,7 +210,7 @@ func New(config Config) (*Collection, error) {
 		}
 	}
 
-	var instrumentorService storage.Service
+	var instrumentorService spec.Service
 	{
 		switch config.Kind {
 		case KindMemory:
@@ -223,8 +223,8 @@ func New(config Config) (*Collection, error) {
 			instrumentorConfig := redis.DefaultConfig()
 			instrumentorConfig.Address = config.Redis.Instrumentor.Address
 			instrumentorConfig.BackoffFactory = config.BackoffFactory
-			instrumentorConfig.Instrumentor = config.Instrumentor
-			instrumentorConfig.Logger = config.Logger
+			instrumentorConfig.InstrumentorCollection = config.InstrumentorCollection
+			instrumentorConfig.LoggerService = config.LoggerService
 			instrumentorConfig.Prefix = config.Redis.Instrumentor.Prefix
 			instrumentorService, err = redis.New(instrumentorConfig)
 			if err != nil {
@@ -233,7 +233,7 @@ func New(config Config) (*Collection, error) {
 		}
 	}
 
-	var peerService storage.Service
+	var peerService spec.Service
 	{
 		switch config.Kind {
 		case KindMemory:
@@ -246,8 +246,8 @@ func New(config Config) (*Collection, error) {
 			peerConfig := redis.DefaultConfig()
 			peerConfig.Address = config.Redis.Peer.Address
 			peerConfig.BackoffFactory = config.BackoffFactory
-			peerConfig.Instrumentor = config.Instrumentor
-			peerConfig.Logger = config.Logger
+			peerConfig.InstrumentorCollection = config.InstrumentorCollection
+			peerConfig.LoggerService = config.LoggerService
 			peerConfig.Prefix = config.Redis.Peer.Prefix
 			peerService, err = redis.New(peerConfig)
 			if err != nil {
@@ -256,7 +256,7 @@ func New(config Config) (*Collection, error) {
 		}
 	}
 
-	var queueService storage.Service
+	var queueService spec.Service
 	{
 		switch config.Kind {
 		case KindMemory:
@@ -269,8 +269,8 @@ func New(config Config) (*Collection, error) {
 			queueConfig := redis.DefaultConfig()
 			queueConfig.Address = config.Redis.Queue.Address
 			queueConfig.BackoffFactory = config.BackoffFactory
-			queueConfig.Instrumentor = config.Instrumentor
-			queueConfig.Logger = config.Logger
+			queueConfig.InstrumentorCollection = config.InstrumentorCollection
+			queueConfig.LoggerService = config.LoggerService
 			queueConfig.Prefix = config.Redis.Queue.Prefix
 			queueService, err = redis.New(queueConfig)
 			if err != nil {
@@ -285,7 +285,7 @@ func New(config Config) (*Collection, error) {
 		shutdownOnce: sync.Once{},
 
 		// Public.
-		List: []storage.Service{
+		List: []spec.Service{
 			connectionService,
 			featureService,
 			generalService,
@@ -314,15 +314,15 @@ type Collection struct {
 	shutdownOnce sync.Once
 
 	// Public.
-	List []storage.Service
+	List []spec.Service
 
-	Connection   storage.Service
-	Feature      storage.Service
-	General      storage.Service
-	Index        storage.Service
-	Instrumentor storage.Service
-	Peer         storage.Service
-	Queue        storage.Service
+	Connection   spec.Service
+	Feature      spec.Service
+	General      spec.Service
+	Index        spec.Service
+	Instrumentor spec.Service
+	Peer         spec.Service
+	Queue        spec.Service
 }
 
 func (c *Collection) Boot() {

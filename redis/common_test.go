@@ -42,7 +42,7 @@ func Test_RedisStorage_retryErrorLogger(t *testing.T) {
 
 	storageConfig := DefaultConfig()
 	storageConfig.Address = "127.0.0.1:6379"
-	storageConfig.Logger = logger
+	storageConfig.LoggerService = logger
 	storageConfig.Prefix = "test-prefix"
 	storageService, err := New(storageConfig)
 	if err != nil {

@@ -10,8 +10,8 @@ import (
 	"github.com/cenk/backoff"
 	"github.com/garyburd/redigo/redis"
 
-	"github.com/the-anna-project/storage"
 	redisstorage "github.com/the-anna-project/storage/redis"
+	"github.com/the-anna-project/storage/spec"
 )
 
 // Config represents the configuration used to create a new storage service.
@@ -27,7 +27,7 @@ func DefaultConfig() Config {
 // New creates a new storage service. Therefore it manages an in-memory redis
 // instance which can be shut down using the configured closer. This is used for
 // local development.
-func New(config Config) (storage.Service, error) {
+func New(config Config) (spec.Service, error) {
 	newService := &service{
 		// Internals.
 		bootOnce:     sync.Once{},
@@ -47,7 +47,7 @@ type service struct {
 	closer       chan struct{}
 	pool         *redis.Pool
 	prefix       string
-	redis        storage.Service
+	redis        spec.Service
 	shutdownOnce sync.Once
 }
 
@@ -76,7 +76,7 @@ func (s *service) Boot() {
 
 		redisConfig := redisstorage.DefaultConfig()
 		redisConfig.Address = redisAddress
-		redisConfig.BackoffFactory = func() storage.Backoff {
+		redisConfig.BackoffFactory = func() spec.Backoff {
 			return backoff.NewExponentialBackOff()
 		}
 		redisConfig.Prefix = s.prefix

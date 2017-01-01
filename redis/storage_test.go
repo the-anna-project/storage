@@ -7,10 +7,10 @@ import (
 	"github.com/garyburd/redigo/redis"
 	"github.com/rafaeljusto/redigomock"
 
-	"github.com/the-anna-project/storage"
+	"github.com/the-anna-project/storage/spec"
 )
 
-func testMustNewStorageWithConn(t *testing.T, c redis.Conn) storage.Service {
+func testMustNewStorageWithConn(t *testing.T, c redis.Conn) spec.Service {
 	newPoolConfig := DefaultPoolConfig()
 	newMockDialConfig := DefaultMockDialConfig()
 	newMockDialConfig.RedisConn = c
