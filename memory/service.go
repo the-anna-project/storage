@@ -190,6 +190,15 @@ func (s *service) Remove(key string) error {
 	return nil
 }
 
+func (s *service) RemoveFromList(key string, element string) error {
+	err := s.redis.RemoveFromList(key, element)
+	if err != nil {
+		return maskAny(err)
+	}
+
+	return nil
+}
+
 func (s *service) RemoveFromSet(key string, element string) error {
 	err := s.redis.RemoveFromSet(key, element)
 	if err != nil {
