@@ -200,6 +200,32 @@ func (s *service) Get(key string) (string, error) {
 	return result, nil
 }
 
+func (s *service) GetAllFromList(key string) ([]string, error) {
+	var result []string
+	action := func() error {
+		conn := s.pool.Get()
+		defer conn.Close()
+
+		values, err := redis.Values(conn.Do("LRANGE", s.withPrefix(key), 0, -1))
+		if err != nil {
+			return maskAny(err)
+		}
+
+		for _, v := range values {
+			result = append(result, string(v.([]uint8)))
+		}
+
+		return nil
+	}
+
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("GetAllFromList", action), s.backoffFactory(), s.retryErrorLogger)
+	if err != nil {
+		return nil, maskAny(err)
+	}
+
+	return result, nil
+}
+
 func (s *service) GetAllFromSet(key string) ([]string, error) {
 	s.logger.Log("func", "GetAllFromSet")
 
@@ -344,6 +370,29 @@ func (s *service) Increment(key string, n float64) (float64, error) {
 	}
 
 	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("Increment", action), s.backoffFactory(), s.retryErrorLogger)
+	if err != nil {
+		return 0, maskAny(err)
+	}
+
+	return result, nil
+}
+
+func (s *service) LengthOfList(key string) (int, error) {
+	var result int
+	action := func() error {
+		conn := s.pool.Get()
+		defer conn.Close()
+
+		var err error
+		result, err = redis.Int(conn.Do("LLEN", s.withPrefix(key)))
+		if err != nil {
+			return maskAny(err)
+		}
+
+		return nil
+	}
+
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("LengthOfList", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return 0, maskAny(err)
 	}
