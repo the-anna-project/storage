@@ -14,6 +14,10 @@ type Service interface {
 	// List.
 	//
 
+	// TrimEndOfList cuts the tail of the list identified by the given key to
+	// ensure that there are not more elements within the list than defined by
+	// maxElements.
+	TrimEndOfList(key string, maxElements int) error
 	// GetAllFromList returns all elements from the list under key. This method
 	// has an enormous time complexity. GetAllFromList should therefore never be
 	// used against bigger lists, where a big list is characterized by a length
