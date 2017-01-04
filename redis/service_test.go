@@ -182,6 +182,30 @@ func Test_ListStorage_RemoveFromList_Error(t *testing.T) {
 	}
 }
 
+func Test_ListStorage_TrimEndOfList_Success(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("LTRIM", "prefix:foo", 0, 4).Expect("OK")
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	err := newStorage.TrimEndOfList("foo", 5)
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+}
+
+func Test_ListStorage_TrimEndOfList_Error(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("LTRIM", "prefix:foo", 0, 4).ExpectError(executionFailedError)
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	err := newStorage.TrimEndOfList("foo", 5)
+	if !IsExecutionFailed(err) {
+		t.Fatal("expected", true, "got", false)
+	}
+}
+
 func Test_ScoredSetStorage_GetElementsByScore_Success(t *testing.T) {
 	c := redigomock.NewConn()
 	c.Command("ZREVRANGEBYSCORE", "prefix:foo", 0.8, 0.8, "LIMIT", 0, 3).Expect([]interface{}{[]uint8("bar")})
@@ -450,6 +474,33 @@ func Test_SetStorage_GetAllFromSet_Error(t *testing.T) {
 	_, err := newStorage.GetAllFromSet("foo")
 	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
+	}
+}
+
+func Test_SetStorage_GetRandomFromSet_Error(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("SRANDMEMBER", "prefix:foo").ExpectError(executionFailedError)
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	_, err := newStorage.GetRandomFromSet("foo")
+	if !IsExecutionFailed(err) {
+		t.Fatal("expected", true, "got", false)
+	}
+}
+
+func Test_SetStorage_GetRandomFromSet_Success(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("SRANDMEMBER", "prefix:foo").Expect("key1")
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	randomElement, err := newStorage.GetRandomFromSet("foo")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if randomElement != "key1" {
+		t.Fatal("expected", "key1", "got", randomElement)
 	}
 }
 

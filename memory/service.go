@@ -154,6 +154,15 @@ func (s *service) GetRandom() (string, error) {
 	return result, nil
 }
 
+func (s *service) GetRandomFromSet(key string) (string, error) {
+	result, err := s.redis.GetRandomFromSet(key)
+	if err != nil {
+		return "", maskAny(err)
+	}
+
+	return result, nil
+}
+
 func (s *service) GetStringMap(key string) (map[string]string, error) {
 	result, err := s.redis.GetStringMap(key)
 	if err != nil {
@@ -275,6 +284,15 @@ func (s *service) Shutdown() {
 	s.shutdownOnce.Do(func() {
 		close(s.closer)
 	})
+}
+
+func (s *service) TrimEndOfList(key string, maxElements int) error {
+	err := s.redis.TrimEndOfList(key, maxElements)
+	if err != nil {
+		return maskAny(err)
+	}
+
+	return nil
 }
 
 func (s *service) WalkKeys(glob string, closer <-chan struct{}, cb func(key string) error) error {

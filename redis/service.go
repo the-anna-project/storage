@@ -174,7 +174,7 @@ func (s *service) Get(key string) (string, error) {
 			// Therefore we do not return the not found error here, but dispatch it to
 			// the calling goroutine. Further we simply fall through and return nil to
 			// finally stop the retrier.
-			errors <- maskAny(err)
+			errors <- maskAny(notFoundError)
 			return nil
 		} else if err != nil {
 			return maskAny(err)
@@ -305,7 +305,7 @@ func (s *service) GetHighestScoredElements(key string, maxElements int) ([]strin
 }
 
 func (s *service) GetRandom() (string, error) {
-	s.logger.Log("func", "GetRandom")
+	errors := make(chan error, 1)
 
 	var result string
 	action := func() error {
@@ -314,7 +314,14 @@ func (s *service) GetRandom() (string, error) {
 
 		var err error
 		result, err = redis.String(conn.Do("RANDOMKEY"))
-		if err != nil {
+		if IsNotFound(err) {
+			// To return the not found error we need to break through the retrier.
+			// Therefore we do not return the not found error here, but dispatch it to
+			// the calling goroutine. Further we simply fall through and return nil to
+			// finally stop the retrier.
+			errors <- maskAny(notFoundError)
+			return nil
+		} else if err != nil {
 			return maskAny(err)
 		}
 
@@ -324,6 +331,56 @@ func (s *service) GetRandom() (string, error) {
 	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("GetRandom", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return "", maskAny(err)
+	}
+
+	select {
+	case err := <-errors:
+		if err != nil {
+			return "", maskAny(err)
+		}
+	default:
+		// If there is no error, we simply fall through to return the result.
+	}
+
+	return result, nil
+}
+
+func (s *service) GetRandomFromSet(key string) (string, error) {
+	errors := make(chan error, 1)
+
+	var result string
+	action := func() error {
+		conn := s.pool.Get()
+		defer conn.Close()
+
+		var err error
+		result, err = redis.String(conn.Do("SRANDMEMBER", s.withPrefix(key)))
+		if IsNotFound(err) {
+			// To return the not found error we need to break through the retrier.
+			// Therefore we do not return the not found error here, but dispatch it to
+			// the calling goroutine. Further we simply fall through and return nil to
+			// finally stop the retrier.
+			errors <- maskAny(notFoundError)
+			return nil
+		} else if err != nil {
+			return maskAny(err)
+		}
+
+		return nil
+	}
+
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("GetRandomFromSet", action), s.backoffFactory(), s.retryErrorLogger)
+	if err != nil {
+		return "", maskAny(err)
+	}
+
+	select {
+	case err := <-errors:
+		if err != nil {
+			return "", maskAny(err)
+		}
+	default:
+		// If there is no error, we simply fall through to return the result.
 	}
 
 	return result, nil
@@ -648,6 +705,31 @@ func (s *service) Shutdown() {
 	s.shutdownOnce.Do(func() {
 		s.pool.Close()
 	})
+}
+
+func (s *service) TrimEndOfList(key string, maxElements int) error {
+	action := func() error {
+		conn := s.pool.Get()
+		defer conn.Close()
+
+		reply, err := redis.String(conn.Do("LTRIM", s.withPrefix(key), 0, maxElements-1))
+		if err != nil {
+			return maskAny(err)
+		}
+
+		if reply != "OK" {
+			return maskAnyf(executionFailedError, "LTRIM not executed correctly")
+		}
+
+		return nil
+	}
+
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("TrimEndOfList", action), s.backoffFactory(), s.retryErrorLogger)
+	if err != nil {
+		return maskAny(err)
+	}
+
+	return nil
 }
 
 func (s *service) WalkKeys(glob string, closer <-chan struct{}, cb func(key string) error) error {
