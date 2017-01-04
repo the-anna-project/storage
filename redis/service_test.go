@@ -477,6 +477,33 @@ func Test_SetStorage_GetAllFromSet_Error(t *testing.T) {
 	}
 }
 
+func Test_SetStorage_GetRandomFromSet_Error(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("SRANDMEMBER", "prefix:foo").ExpectError(executionFailedError)
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	_, err := newStorage.GetRandomFromSet("foo")
+	if !IsExecutionFailed(err) {
+		t.Fatal("expected", true, "got", false)
+	}
+}
+
+func Test_SetStorage_GetRandomFromSet_Success(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("SRANDMEMBER", "prefix:foo").Expect("key1")
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	randomElement, err := newStorage.GetRandomFromSet("foo")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if randomElement != "key1" {
+		t.Fatal("expected", "key1", "got", randomElement)
+	}
+}
+
 func Test_SetStorage_PushToSet(t *testing.T) {
 	c := redigomock.NewConn()
 	c.Command("SADD", "prefix:test-key", "test-element").Expect(int64(1))

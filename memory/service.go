@@ -154,6 +154,15 @@ func (s *service) GetRandom() (string, error) {
 	return result, nil
 }
 
+func (s *service) GetRandomFromSet(key string) (string, error) {
+	result, err := s.redis.GetRandomFromSet(key)
+	if err != nil {
+		return "", maskAny(err)
+	}
+
+	return result, nil
+}
+
 func (s *service) GetStringMap(key string) (map[string]string, error) {
 	result, err := s.redis.GetStringMap(key)
 	if err != nil {

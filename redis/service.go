@@ -345,6 +345,47 @@ func (s *service) GetRandom() (string, error) {
 	return result, nil
 }
 
+func (s *service) GetRandomFromSet(key string) (string, error) {
+	errors := make(chan error, 1)
+
+	var result string
+	action := func() error {
+		conn := s.pool.Get()
+		defer conn.Close()
+
+		var err error
+		result, err = redis.String(conn.Do("SRANDMEMBER", s.withPrefix(key)))
+		if IsNotFound(err) {
+			// To return the not found error we need to break through the retrier.
+			// Therefore we do not return the not found error here, but dispatch it to
+			// the calling goroutine. Further we simply fall through and return nil to
+			// finally stop the retrier.
+			errors <- maskAny(notFoundError)
+			return nil
+		} else if err != nil {
+			return maskAny(err)
+		}
+
+		return nil
+	}
+
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("GetRandomFromSet", action), s.backoffFactory(), s.retryErrorLogger)
+	if err != nil {
+		return "", maskAny(err)
+	}
+
+	select {
+	case err := <-errors:
+		if err != nil {
+			return "", maskAny(err)
+		}
+	default:
+		// If there is no error, we simply fall through to return the result.
+	}
+
+	return result, nil
+}
+
 func (s *service) GetStringMap(key string) (map[string]string, error) {
 	s.logger.Log("func", "GetStringMap")
 

@@ -826,6 +826,61 @@ func Test_ScoredSetStorage_WalkScoredSet(t *testing.T) {
 	}
 }
 
+func Test_SetStorage_GetRandomFromSet(t *testing.T) {
+	newStorage := testNewStorage()
+	defer newStorage.Shutdown()
+
+	newStorage.Set("SetKey1", "SetValue1")
+	newStorage.Set("SetKey2", "SetValue2")
+	newStorage.Set("SetKey3", "SetValue3")
+	newStorage.PushToSet("PushToSet", "PushToSetElement1")
+	newStorage.PushToSet("PushToSet", "PushToSetElement2")
+	newStorage.PushToSet("PushToSet", "PushToSetElement3")
+	newStorage.SetElementByScore("SetElementByScoreKey1", "SetElementByScoreElement1", 0)
+	newStorage.SetElementByScore("SetElementByScoreKey2", "SetElementByScoreElement2", 0)
+	newStorage.SetElementByScore("SetElementByScoreKey3", "SetElementByScoreElement3", 0)
+	newStorage.SetStringMap("SetStringMapKey1", map[string]string{"foo": "bar"})
+	newStorage.SetStringMap("SetStringMapKey2", map[string]string{"foo": "bar"})
+	newStorage.SetStringMap("SetStringMapKey3", map[string]string{"foo": "bar"})
+
+	alreadySeen := map[string]struct{}{}
+
+	var mutex sync.Mutex
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			newKey, err := newStorage.GetRandomFromSet("PushToSet")
+			if err != nil {
+				t.Fatal("expected", nil, "got", err)
+			}
+
+			mutex.Lock()
+			alreadySeen[newKey] = struct{}{}
+			mutex.Unlock()
+		}()
+	}
+	wg.Wait()
+
+	// We only expect 3 elements because there is only one set containing 3
+	// elements.
+	l := len(alreadySeen)
+	if l != 3 {
+		t.Fatal("expected", 3, "got", l)
+	}
+}
+
+func Test_SetStorage_GetRandomFromSet_Empty(t *testing.T) {
+	newStorage := testNewStorage()
+	defer newStorage.Shutdown()
+
+	_, err := newStorage.GetRandomFromSet("foo")
+	if !storageerror.IsNotFound(err) {
+		t.Fatal("expected", nil, "got", err)
+	}
+}
+
 func Test_SetStorage_PushGetAll(t *testing.T) {
 	newStorage := testNewStorage()
 	defer newStorage.Shutdown()
@@ -1016,8 +1071,6 @@ func Test_StringStorage_GetRandom(t *testing.T) {
 	newStorage := testNewStorage()
 	defer newStorage.Shutdown()
 
-	// We store 3 keys in each map of the memory storage to verify that we fetch a
-	// random key across all stored keys.
 	newStorage.Set("SetKey1", "SetValue1")
 	newStorage.Set("SetKey2", "SetValue2")
 	newStorage.Set("SetKey3", "SetValue3")
@@ -1051,6 +1104,7 @@ func Test_StringStorage_GetRandom(t *testing.T) {
 	}
 	wg.Wait()
 
+	// We expect 12 keys because there are 12 different keys created.
 	l := len(alreadySeen)
 	if l != 12 {
 		t.Fatal("expected", 12, "got", l)
