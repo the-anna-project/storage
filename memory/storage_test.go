@@ -1009,6 +1009,16 @@ func Test_StringStorage_GetRandom(t *testing.T) {
 	}
 }
 
+func Test_StringStorage_GetRandom_Empty(t *testing.T) {
+	newStorage := testNewStorage()
+	defer newStorage.Shutdown()
+
+	_, err := newStorage.GetRandom()
+	if !storageerror.IsNotFound(err) {
+		t.Fatal("expected", nil, "got", err)
+	}
+}
+
 func Test_StringStorage_GetSetGet(t *testing.T) {
 	newStorage := testNewStorage()
 	defer newStorage.Shutdown()

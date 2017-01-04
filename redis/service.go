@@ -174,7 +174,7 @@ func (s *service) Get(key string) (string, error) {
 			// Therefore we do not return the not found error here, but dispatch it to
 			// the calling goroutine. Further we simply fall through and return nil to
 			// finally stop the retrier.
-			errors <- maskAny(err)
+			errors <- maskAny(notFoundError)
 			return nil
 		} else if err != nil {
 			return maskAny(err)
@@ -305,7 +305,7 @@ func (s *service) GetHighestScoredElements(key string, maxElements int) ([]strin
 }
 
 func (s *service) GetRandom() (string, error) {
-	s.logger.Log("func", "GetRandom")
+	errors := make(chan error, 1)
 
 	var result string
 	action := func() error {
@@ -314,7 +314,14 @@ func (s *service) GetRandom() (string, error) {
 
 		var err error
 		result, err = redis.String(conn.Do("RANDOMKEY"))
-		if err != nil {
+		if IsNotFound(err) {
+			// To return the not found error we need to break through the retrier.
+			// Therefore we do not return the not found error here, but dispatch it to
+			// the calling goroutine. Further we simply fall through and return nil to
+			// finally stop the retrier.
+			errors <- maskAny(notFoundError)
+			return nil
+		} else if err != nil {
 			return maskAny(err)
 		}
 
@@ -324,6 +331,15 @@ func (s *service) GetRandom() (string, error) {
 	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("GetRandom", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return "", maskAny(err)
+	}
+
+	select {
+	case err := <-errors:
+		if err != nil {
+			return "", maskAny(err)
+		}
+	default:
+		// If there is no error, we simply fall through to return the result.
 	}
 
 	return result, nil
