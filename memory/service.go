@@ -277,6 +277,15 @@ func (s *service) Shutdown() {
 	})
 }
 
+func (s *service) TrimEndOfList(key string, maxElements int) error {
+	err := s.redis.TrimEndOfList(key, maxElements)
+	if err != nil {
+		return maskAny(err)
+	}
+
+	return nil
+}
+
 func (s *service) WalkKeys(glob string, closer <-chan struct{}, cb func(key string) error) error {
 	err := s.redis.WalkKeys(glob, closer, cb)
 	if err != nil {

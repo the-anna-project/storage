@@ -182,6 +182,30 @@ func Test_ListStorage_RemoveFromList_Error(t *testing.T) {
 	}
 }
 
+func Test_ListStorage_TrimEndOfList_Success(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("LTRIM", "prefix:foo", 0, 4).Expect("OK")
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	err := newStorage.TrimEndOfList("foo", 5)
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+}
+
+func Test_ListStorage_TrimEndOfList_Error(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("LTRIM", "prefix:foo", 0, 4).ExpectError(executionFailedError)
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	err := newStorage.TrimEndOfList("foo", 5)
+	if !IsExecutionFailed(err) {
+		t.Fatal("expected", true, "got", false)
+	}
+}
+
 func Test_ScoredSetStorage_GetElementsByScore_Success(t *testing.T) {
 	c := redigomock.NewConn()
 	c.Command("ZREVRANGEBYSCORE", "prefix:foo", 0.8, 0.8, "LIMIT", 0, 3).Expect([]interface{}{[]uint8("bar")})

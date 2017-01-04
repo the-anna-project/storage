@@ -239,6 +239,54 @@ func Test_ListStorage_PushToListRemoveFromList(t *testing.T) {
 	}
 }
 
+func Test_ListStorage_TrimEndOfList(t *testing.T) {
+	newStorage := testNewStorage()
+	defer newStorage.Shutdown()
+
+	var err error
+	err = newStorage.PushToList("key", "element1")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	err = newStorage.PushToList("key", "element2")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	err = newStorage.PushToList("key", "element3")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	err = newStorage.PushToList("key", "element4")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	err = newStorage.PushToList("key", "element5")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+
+	elements, err := newStorage.GetAllFromList("key")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if len(elements) != 5 {
+		t.Fatal("expected", 5, "got", len(elements))
+	}
+
+	err = newStorage.TrimEndOfList("key", 2)
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+
+	elements, err = newStorage.GetAllFromList("key")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if len(elements) != 2 {
+		t.Fatal("expected", 2, "got", len(elements))
+	}
+}
+
 func Test_ScoredSetStorage_GetElementsByScore(t *testing.T) {
 	testCases := []struct {
 		Key          string

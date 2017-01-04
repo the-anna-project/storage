@@ -666,6 +666,31 @@ func (s *service) Shutdown() {
 	})
 }
 
+func (s *service) TrimEndOfList(key string, maxElements int) error {
+	action := func() error {
+		conn := s.pool.Get()
+		defer conn.Close()
+
+		reply, err := redis.String(conn.Do("LTRIM", s.withPrefix(key), 0, maxElements-1))
+		if err != nil {
+			return maskAny(err)
+		}
+
+		if reply != "OK" {
+			return maskAnyf(executionFailedError, "LTRIM not executed correctly")
+		}
+
+		return nil
+	}
+
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("TrimEndOfList", action), s.backoffFactory(), s.retryErrorLogger)
+	if err != nil {
+		return maskAny(err)
+	}
+
+	return nil
+}
+
 func (s *service) WalkKeys(glob string, closer <-chan struct{}, cb func(key string) error) error {
 	s.logger.Log("func", "WalkKeys")
 
