@@ -31,13 +31,14 @@ type RedisConfig struct {
 
 // Redis is a config bundle of redis configs.
 type Redis struct {
-	Connection   RedisConfig
-	Event        RedisConfig
-	Feature      RedisConfig
-	General      RedisConfig
-	Index        RedisConfig
-	Instrumentor RedisConfig
-	Peer         RedisConfig
+	Configuration RedisConfig
+	Connection    RedisConfig
+	Event         RedisConfig
+	Feature       RedisConfig
+	General       RedisConfig
+	Index         RedisConfig
+	Instrumentor  RedisConfig
+	Peer          RedisConfig
 }
 
 // CollectionConfig represents the configuration used to create a new storage
@@ -117,6 +118,29 @@ func NewCollection(config CollectionConfig) (*Collection, error) {
 	}
 
 	var err error
+
+	var configurationService spec.Service
+	{
+		switch config.Kind {
+		case KindMemory:
+			configurationConfig := memory.DefaultConfig()
+			configurationService, err = memory.New(configurationConfig)
+			if err != nil {
+				return nil, maskAny(err)
+			}
+		case KindRedis:
+			configurationConfig := redis.DefaultConfig()
+			configurationConfig.Address = config.Redis.Configuration.Address
+			configurationConfig.BackoffFactory = config.BackoffFactory
+			configurationConfig.InstrumentorCollection = config.InstrumentorCollection
+			configurationConfig.LoggerService = config.LoggerService
+			configurationConfig.Prefix = config.Redis.Configuration.Prefix
+			configurationService, err = redis.New(configurationConfig)
+			if err != nil {
+				return nil, maskAny(err)
+			}
+		}
+	}
 
 	var connectionService spec.Service
 	{
@@ -286,6 +310,7 @@ func NewCollection(config CollectionConfig) (*Collection, error) {
 
 		// Public.
 		List: []spec.Service{
+			configurationService,
 			connectionService,
 			eventService,
 			featureService,
@@ -295,13 +320,14 @@ func NewCollection(config CollectionConfig) (*Collection, error) {
 			peerService,
 		},
 
-		Connection:   connectionService,
-		Event:        eventService,
-		Feature:      featureService,
-		General:      generalService,
-		Index:        indexService,
-		Instrumentor: instrumentorService,
-		Peer:         peerService,
+		Configuration: configurationService,
+		Connection:    connectionService,
+		Event:         eventService,
+		Feature:       featureService,
+		General:       generalService,
+		Index:         indexService,
+		Instrumentor:  instrumentorService,
+		Peer:          peerService,
 	}
 
 	return newCollection, nil
@@ -316,13 +342,14 @@ type Collection struct {
 	// Public.
 	List []spec.Service
 
-	Connection   spec.Service
-	Event        spec.Service
-	Feature      spec.Service
-	General      spec.Service
-	Index        spec.Service
-	Instrumentor spec.Service
-	Peer         spec.Service
+	Configuration spec.Service
+	Connection    spec.Service
+	Event         spec.Service
+	Feature       spec.Service
+	General       spec.Service
+	Index         spec.Service
+	Instrumentor  spec.Service
+	Peer          spec.Service
 }
 
 func (c *Collection) Boot() {
