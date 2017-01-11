@@ -1,10 +1,8 @@
-package redis
+package memory
 
 import (
 	"fmt"
 	"testing"
-
-	"github.com/garyburd/redigo/redis"
 )
 
 func Test_Error_maskAnyf(t *testing.T) {
@@ -45,21 +43,5 @@ func Test_Error_maskAnyf(t *testing.T) {
 		if testCase.Expected != nil && output.Error() != testCase.Expected.Error() {
 			t.Fatal("case", i+1, "expected", testCase.Expected, "got", output)
 		}
-	}
-}
-
-func Test_Error_IsNotFound(t *testing.T) {
-	if !IsNotFound(redis.ErrNil) {
-		t.Fatal("expected", true, "got", false)
-	}
-	if !IsNotFound(maskAny(redis.ErrNil)) {
-		t.Fatal("expected", true, "got", false)
-	}
-
-	if IsNotFound(nil) {
-		t.Fatal("expected", false, "got", true)
-	}
-	if IsNotFound(invalidConfigError) {
-		t.Fatal("expected", false, "got", true)
 	}
 }

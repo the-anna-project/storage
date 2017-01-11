@@ -102,7 +102,9 @@ func (s *service) Exists(key string) (bool, error) {
 
 func (s *service) Get(key string) (string, error) {
 	result, err := s.redis.Get(key)
-	if err != nil {
+	if redisstorage.IsNotFound(err) {
+		return "", maskAny(notFoundError)
+	} else if err != nil {
 		return "", maskAny(err)
 	}
 
@@ -147,7 +149,9 @@ func (s *service) GetHighestScoredElements(key string, maxElements int) ([]strin
 
 func (s *service) GetRandom() (string, error) {
 	result, err := s.redis.GetRandom()
-	if err != nil {
+	if redisstorage.IsNotFound(err) {
+		return "", maskAny(notFoundError)
+	} else if err != nil {
 		return "", maskAny(err)
 	}
 
@@ -156,7 +160,9 @@ func (s *service) GetRandom() (string, error) {
 
 func (s *service) GetRandomFromSet(key string) (string, error) {
 	result, err := s.redis.GetRandomFromSet(key)
-	if err != nil {
+	if redisstorage.IsNotFound(err) {
+		return "", maskAny(notFoundError)
+	} else if err != nil {
 		return "", maskAny(err)
 	}
 

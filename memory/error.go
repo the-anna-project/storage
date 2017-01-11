@@ -28,3 +28,10 @@ var invalidConfigError = errgo.New("invalid config")
 func IsInvalidConfig(err error) bool {
 	return errgo.Cause(err) == invalidConfigError
 }
+
+var notFoundError = errgo.New("not found")
+
+// IsNotFound asserts notFoundError.
+func IsNotFound(err error) bool {
+	return errgo.Cause(err) == notFoundError
+}
