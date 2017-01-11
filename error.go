@@ -4,6 +4,9 @@ import (
 	"fmt"
 
 	"github.com/juju/errgo"
+
+	"github.com/the-anna-project/storage/memory"
+	"github.com/the-anna-project/storage/redis"
 )
 
 var (
@@ -27,4 +30,11 @@ var invalidConfigError = errgo.New("invalid config")
 // IsInvalidConfig asserts invalidConfigError.
 func IsInvalidConfig(err error) bool {
 	return errgo.Cause(err) == invalidConfigError
+}
+
+// IsNotFound combines IsNotFound error matchers of all storage implementations.
+// IsNotFound should thus be used for error handling wherever a storage service
+// is used.
+func IsNotFound(err error) bool {
+	return redis.IsNotFound(err) || memory.IsNotFound(err)
 }

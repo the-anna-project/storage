@@ -49,7 +49,7 @@ func Test_RedisStorage_retryErrorLogger(t *testing.T) {
 		t.Fatal("expected", nil, "got", err)
 	}
 
-	storageService.(*service).retryErrorLogger(invalidConfigError, 0)
+	storageService.retryErrorLogger(invalidConfigError, 0)
 	result := logger.ArgsToString()
 
 	if !strings.Contains(result, invalidConfigError.Error()) {
@@ -67,7 +67,7 @@ func Test_RedisStorage_withPrefix(t *testing.T) {
 	}
 
 	expected := "test-prefix:my:test:key"
-	newKey := storageService.(*service).withPrefix("my", "test", "key")
+	newKey := storageService.withPrefix("my", "test", "key")
 	if newKey != expected {
 		t.Fatal("expected", expected, "got", newKey)
 	}
@@ -82,7 +82,7 @@ func Test_RedisStorage_withPrefix_Empty(t *testing.T) {
 		t.Fatal("expected", nil, "got", err)
 	}
 
-	newKey := storageService.(*service).withPrefix()
+	newKey := storageService.withPrefix()
 	if newKey != "test-prefix" {
 		t.Fatal("expected", "test-prefix", "got", newKey)
 	}

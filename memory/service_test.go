@@ -6,11 +6,9 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/the-anna-project/storage/spec"
 )
 
-func testNewStorage() spec.Service {
+func testNewStorage() *Service {
 	storageConfig := DefaultConfig()
 	storageService, err := New(storageConfig)
 	if err != nil {

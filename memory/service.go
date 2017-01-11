@@ -11,7 +11,6 @@ import (
 	"github.com/garyburd/redigo/redis"
 
 	redisstorage "github.com/the-anna-project/storage/redis"
-	"github.com/the-anna-project/storage/spec"
 )
 
 // Config represents the configuration used to create a new storage service.
@@ -27,8 +26,8 @@ func DefaultConfig() Config {
 // New creates a new storage service. Therefore it manages an in-memory redis
 // instance which can be shut down using the configured closer. This is used for
 // local development.
-func New(config Config) (spec.Service, error) {
-	newService := &service{
+func New(config Config) (*Service, error) {
+	newService := &Service{
 		// Internals.
 		bootOnce:     sync.Once{},
 		closer:       make(chan struct{}, 1),
@@ -41,17 +40,17 @@ func New(config Config) (spec.Service, error) {
 	return newService, nil
 }
 
-type service struct {
+type Service struct {
 	// Internals.
 	bootOnce     sync.Once
 	closer       chan struct{}
 	pool         *redis.Pool
 	prefix       string
-	redis        spec.Service
+	redis        *redisstorage.Service
 	shutdownOnce sync.Once
 }
 
-func (s *service) Boot() {
+func (s *Service) Boot() {
 	s.bootOnce.Do(func() {
 		addressChannel := make(chan string, 1)
 		closer := make(chan struct{}, 1)
@@ -76,7 +75,7 @@ func (s *service) Boot() {
 
 		redisConfig := redisstorage.DefaultConfig()
 		redisConfig.Address = redisAddress
-		redisConfig.BackoffFactory = func() spec.Backoff {
+		redisConfig.BackoffFactory = func() redisstorage.Backoff {
 			return backoff.NewExponentialBackOff()
 		}
 		redisConfig.Prefix = s.prefix
@@ -91,7 +90,7 @@ func (s *service) Boot() {
 	})
 }
 
-func (s *service) Exists(key string) (bool, error) {
+func (s *Service) Exists(key string) (bool, error) {
 	result, err := s.redis.Exists(key)
 	if err != nil {
 		return false, maskAny(err)
@@ -100,7 +99,7 @@ func (s *service) Exists(key string) (bool, error) {
 	return result, nil
 }
 
-func (s *service) Get(key string) (string, error) {
+func (s *Service) Get(key string) (string, error) {
 	result, err := s.redis.Get(key)
 	if redisstorage.IsNotFound(err) {
 		return "", maskAny(notFoundError)
@@ -111,7 +110,7 @@ func (s *service) Get(key string) (string, error) {
 	return result, nil
 }
 
-func (s *service) GetAllFromList(key string) ([]string, error) {
+func (s *Service) GetAllFromList(key string) ([]string, error) {
 	result, err := s.redis.GetAllFromList(key)
 	if err != nil {
 		return nil, maskAny(err)
@@ -120,7 +119,7 @@ func (s *service) GetAllFromList(key string) ([]string, error) {
 	return result, nil
 }
 
-func (s *service) GetAllFromSet(key string) ([]string, error) {
+func (s *Service) GetAllFromSet(key string) ([]string, error) {
 	result, err := s.redis.GetAllFromSet(key)
 	if err != nil {
 		return nil, maskAny(err)
@@ -129,7 +128,7 @@ func (s *service) GetAllFromSet(key string) ([]string, error) {
 	return result, nil
 }
 
-func (s *service) GetElementsByScore(key string, score float64, maxElements int) ([]string, error) {
+func (s *Service) GetElementsByScore(key string, score float64, maxElements int) ([]string, error) {
 	result, err := s.redis.GetElementsByScore(key, score, maxElements)
 	if err != nil {
 		return nil, maskAny(err)
@@ -138,7 +137,7 @@ func (s *service) GetElementsByScore(key string, score float64, maxElements int)
 	return result, nil
 }
 
-func (s *service) GetHighestScoredElements(key string, maxElements int) ([]string, error) {
+func (s *Service) GetHighestScoredElements(key string, maxElements int) ([]string, error) {
 	result, err := s.redis.GetHighestScoredElements(key, maxElements)
 	if err != nil {
 		return nil, maskAny(err)
@@ -147,7 +146,7 @@ func (s *service) GetHighestScoredElements(key string, maxElements int) ([]strin
 	return result, nil
 }
 
-func (s *service) GetRandom() (string, error) {
+func (s *Service) GetRandom() (string, error) {
 	result, err := s.redis.GetRandom()
 	if redisstorage.IsNotFound(err) {
 		return "", maskAny(notFoundError)
@@ -158,7 +157,7 @@ func (s *service) GetRandom() (string, error) {
 	return result, nil
 }
 
-func (s *service) GetRandomFromSet(key string) (string, error) {
+func (s *Service) GetRandomFromSet(key string) (string, error) {
 	result, err := s.redis.GetRandomFromSet(key)
 	if redisstorage.IsNotFound(err) {
 		return "", maskAny(notFoundError)
@@ -169,7 +168,7 @@ func (s *service) GetRandomFromSet(key string) (string, error) {
 	return result, nil
 }
 
-func (s *service) GetStringMap(key string) (map[string]string, error) {
+func (s *Service) GetStringMap(key string) (map[string]string, error) {
 	result, err := s.redis.GetStringMap(key)
 	if err != nil {
 		return nil, maskAny(err)
@@ -178,7 +177,7 @@ func (s *service) GetStringMap(key string) (map[string]string, error) {
 	return result, nil
 }
 
-func (s *service) Increment(key string, n float64) (float64, error) {
+func (s *Service) Increment(key string, n float64) (float64, error) {
 	result, err := s.redis.Increment(key, n)
 	if err != nil {
 		return 0, maskAny(err)
@@ -187,7 +186,7 @@ func (s *service) Increment(key string, n float64) (float64, error) {
 	return result, nil
 }
 
-func (s *service) LengthOfList(key string) (int, error) {
+func (s *Service) LengthOfList(key string) (int, error) {
 	result, err := s.redis.LengthOfList(key)
 	if err != nil {
 		return 0, maskAny(err)
@@ -196,7 +195,7 @@ func (s *service) LengthOfList(key string) (int, error) {
 	return result, nil
 }
 
-func (s *service) PopFromList(key string) (string, error) {
+func (s *Service) PopFromList(key string) (string, error) {
 	result, err := s.redis.PopFromList(key)
 	if err != nil {
 		return "", maskAny(err)
@@ -205,7 +204,7 @@ func (s *service) PopFromList(key string) (string, error) {
 	return result, nil
 }
 
-func (s *service) PushToList(key string, element string) error {
+func (s *Service) PushToList(key string, element string) error {
 	err := s.redis.PushToList(key, element)
 	if err != nil {
 		return maskAny(err)
@@ -214,7 +213,7 @@ func (s *service) PushToList(key string, element string) error {
 	return nil
 }
 
-func (s *service) PushToSet(key string, element string) error {
+func (s *Service) PushToSet(key string, element string) error {
 	err := s.redis.PushToSet(key, element)
 	if err != nil {
 		return maskAny(err)
@@ -223,7 +222,7 @@ func (s *service) PushToSet(key string, element string) error {
 	return nil
 }
 
-func (s *service) Remove(key string) error {
+func (s *Service) Remove(key string) error {
 	err := s.redis.Remove(key)
 	if err != nil {
 		return maskAny(err)
@@ -232,7 +231,7 @@ func (s *service) Remove(key string) error {
 	return nil
 }
 
-func (s *service) RemoveFromList(key string, element string) error {
+func (s *Service) RemoveFromList(key string, element string) error {
 	err := s.redis.RemoveFromList(key, element)
 	if err != nil {
 		return maskAny(err)
@@ -241,7 +240,7 @@ func (s *service) RemoveFromList(key string, element string) error {
 	return nil
 }
 
-func (s *service) RemoveFromSet(key string, element string) error {
+func (s *Service) RemoveFromSet(key string, element string) error {
 	err := s.redis.RemoveFromSet(key, element)
 	if err != nil {
 		return maskAny(err)
@@ -250,7 +249,7 @@ func (s *service) RemoveFromSet(key string, element string) error {
 	return nil
 }
 
-func (s *service) RemoveScoredElement(key string, element string) error {
+func (s *Service) RemoveScoredElement(key string, element string) error {
 	err := s.redis.RemoveScoredElement(key, element)
 	if err != nil {
 		return maskAny(err)
@@ -259,7 +258,7 @@ func (s *service) RemoveScoredElement(key string, element string) error {
 	return nil
 }
 
-func (s *service) Set(key, value string) error {
+func (s *Service) Set(key, value string) error {
 	err := s.redis.Set(key, value)
 	if err != nil {
 		return maskAny(err)
@@ -268,7 +267,7 @@ func (s *service) Set(key, value string) error {
 	return nil
 }
 
-func (s *service) SetElementByScore(key, element string, score float64) error {
+func (s *Service) SetElementByScore(key, element string, score float64) error {
 	err := s.redis.SetElementByScore(key, element, score)
 	if err != nil {
 		return maskAny(err)
@@ -277,7 +276,7 @@ func (s *service) SetElementByScore(key, element string, score float64) error {
 	return nil
 }
 
-func (s *service) SetStringMap(key string, stringMap map[string]string) error {
+func (s *Service) SetStringMap(key string, stringMap map[string]string) error {
 	err := s.redis.SetStringMap(key, stringMap)
 	if err != nil {
 		return maskAny(err)
@@ -286,13 +285,13 @@ func (s *service) SetStringMap(key string, stringMap map[string]string) error {
 	return nil
 }
 
-func (s *service) Shutdown() {
+func (s *Service) Shutdown() {
 	s.shutdownOnce.Do(func() {
 		close(s.closer)
 	})
 }
 
-func (s *service) TrimEndOfList(key string, maxElements int) error {
+func (s *Service) TrimEndOfList(key string, maxElements int) error {
 	err := s.redis.TrimEndOfList(key, maxElements)
 	if err != nil {
 		return maskAny(err)
@@ -301,7 +300,7 @@ func (s *service) TrimEndOfList(key string, maxElements int) error {
 	return nil
 }
 
-func (s *service) WalkKeys(glob string, closer <-chan struct{}, cb func(key string) error) error {
+func (s *Service) WalkKeys(glob string, closer <-chan struct{}, cb func(key string) error) error {
 	err := s.redis.WalkKeys(glob, closer, cb)
 	if err != nil {
 		return maskAny(err)
@@ -310,7 +309,7 @@ func (s *service) WalkKeys(glob string, closer <-chan struct{}, cb func(key stri
 	return nil
 }
 
-func (s *service) WalkScoredSet(key string, closer <-chan struct{}, cb func(element string, score float64) error) error {
+func (s *Service) WalkScoredSet(key string, closer <-chan struct{}, cb func(element string, score float64) error) error {
 	err := s.redis.WalkScoredSet(key, closer, cb)
 	if err != nil {
 		return maskAny(err)
@@ -319,7 +318,7 @@ func (s *service) WalkScoredSet(key string, closer <-chan struct{}, cb func(elem
 	return nil
 }
 
-func (s *service) WalkSet(key string, closer <-chan struct{}, cb func(element string) error) error {
+func (s *Service) WalkSet(key string, closer <-chan struct{}, cb func(element string) error) error {
 	err := s.redis.WalkSet(key, closer, cb)
 	if err != nil {
 		return maskAny(err)
