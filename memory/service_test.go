@@ -6,12 +6,9 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	storageerror "github.com/the-anna-project/storage/error"
-	"github.com/the-anna-project/storage/spec"
 )
 
-func testNewStorage() spec.Service {
+func testNewStorage() *Service {
 	storageConfig := DefaultConfig()
 	storageService, err := New(storageConfig)
 	if err != nil {
@@ -876,7 +873,7 @@ func Test_SetStorage_GetRandomFromSet_Empty(t *testing.T) {
 	defer newStorage.Shutdown()
 
 	_, err := newStorage.GetRandomFromSet("foo")
-	if !storageerror.IsNotFound(err) {
+	if !IsNotFound(err) {
 		t.Fatal("expected", nil, "got", err)
 	}
 }
@@ -1116,7 +1113,7 @@ func Test_StringStorage_GetRandom_Empty(t *testing.T) {
 	defer newStorage.Shutdown()
 
 	_, err := newStorage.GetRandom()
-	if !storageerror.IsNotFound(err) {
+	if !IsNotFound(err) {
 		t.Fatal("expected", nil, "got", err)
 	}
 }
@@ -1126,7 +1123,7 @@ func Test_StringStorage_GetSetGet(t *testing.T) {
 	defer newStorage.Shutdown()
 
 	_, err := newStorage.Get("foo")
-	if !storageerror.IsNotFound(err) {
+	if !IsNotFound(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 
@@ -1188,7 +1185,7 @@ func Test_StringStorage_SetGetRemoveGet(t *testing.T) {
 	}
 
 	_, err = newStorage.Get("foo")
-	if !storageerror.IsNotFound(err) {
+	if !IsNotFound(err) {
 		t.Fatal("expected", true, "got", false)
 	}
 }

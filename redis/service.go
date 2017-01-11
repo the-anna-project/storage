@@ -10,14 +10,12 @@ import (
 	"github.com/garyburd/redigo/redis"
 	"github.com/the-anna-project/instrumentor"
 	"github.com/the-anna-project/logger"
-
-	"github.com/the-anna-project/storage/spec"
 )
 
 // Config represents the configuration used to create a new storage service.
 type Config struct {
 	// Dependencies.
-	BackoffFactory         func() spec.Backoff
+	BackoffFactory         func() Backoff
 	LoggerService          logger.Service
 	InstrumentorCollection *instrumentor.Collection
 
@@ -52,7 +50,7 @@ func DefaultConfig() Config {
 
 	config := Config{
 		// Dependencies.
-		BackoffFactory: func() spec.Backoff {
+		BackoffFactory: func() Backoff {
 			return &backoff.StopBackOff{}
 		},
 		InstrumentorCollection: instrumentorCollection,
@@ -68,7 +66,7 @@ func DefaultConfig() Config {
 }
 
 // New creates a new storage service.
-func New(config Config) (spec.Service, error) {
+func New(config Config) (*Service, error) {
 	// Dependencies.
 	if config.BackoffFactory == nil {
 		return nil, maskAnyf(invalidConfigError, "backoff factory must not be empty")
@@ -93,7 +91,7 @@ func New(config Config) (spec.Service, error) {
 		pool = NewPoolWithAddress(config.Address)
 	}
 
-	newService := &service{
+	newService := &Service{
 		// Dependencies.
 		backoffFactory: config.BackoffFactory,
 		instrumentor:   config.InstrumentorCollection,
@@ -112,9 +110,9 @@ func New(config Config) (spec.Service, error) {
 	return newService, nil
 }
 
-type service struct {
+type Service struct {
 	// Dependencies.
-	backoffFactory func() spec.Backoff
+	backoffFactory func() Backoff
 	instrumentor   *instrumentor.Collection
 	logger         logger.Service
 
@@ -128,13 +126,13 @@ type service struct {
 	prefix string
 }
 
-func (s *service) Boot() {
+func (s *Service) Boot() {
 	s.bootOnce.Do(func() {
 		// Service specific boot logic goes here.
 	})
 }
 
-func (s *service) Exists(key string) (bool, error) {
+func (s *Service) Exists(key string) (bool, error) {
 	var result bool
 	action := func() error {
 		conn := s.pool.Get()
@@ -157,7 +155,7 @@ func (s *service) Exists(key string) (bool, error) {
 	return result, nil
 }
 
-func (s *service) Get(key string) (string, error) {
+func (s *Service) Get(key string) (string, error) {
 	s.logger.Log("func", "Get")
 
 	errors := make(chan error, 1)
@@ -200,7 +198,7 @@ func (s *service) Get(key string) (string, error) {
 	return result, nil
 }
 
-func (s *service) GetAllFromList(key string) ([]string, error) {
+func (s *Service) GetAllFromList(key string) ([]string, error) {
 	var result []string
 	action := func() error {
 		conn := s.pool.Get()
@@ -226,7 +224,7 @@ func (s *service) GetAllFromList(key string) ([]string, error) {
 	return result, nil
 }
 
-func (s *service) GetAllFromSet(key string) ([]string, error) {
+func (s *Service) GetAllFromSet(key string) ([]string, error) {
 	s.logger.Log("func", "GetAllFromSet")
 
 	var result []string
@@ -254,7 +252,7 @@ func (s *service) GetAllFromSet(key string) ([]string, error) {
 	return result, nil
 }
 
-func (s *service) GetElementsByScore(key string, score float64, maxElements int) ([]string, error) {
+func (s *Service) GetElementsByScore(key string, score float64, maxElements int) ([]string, error) {
 	s.logger.Log("func", "GetElementsByScore")
 
 	var result []string
@@ -279,7 +277,7 @@ func (s *service) GetElementsByScore(key string, score float64, maxElements int)
 	return result, nil
 }
 
-func (s *service) GetHighestScoredElements(key string, maxElements int) ([]string, error) {
+func (s *Service) GetHighestScoredElements(key string, maxElements int) ([]string, error) {
 	s.logger.Log("func", "GetHighestScoredElements")
 
 	var result []string
@@ -304,7 +302,7 @@ func (s *service) GetHighestScoredElements(key string, maxElements int) ([]strin
 	return result, nil
 }
 
-func (s *service) GetRandom() (string, error) {
+func (s *Service) GetRandom() (string, error) {
 	errors := make(chan error, 1)
 
 	var result string
@@ -345,7 +343,7 @@ func (s *service) GetRandom() (string, error) {
 	return result, nil
 }
 
-func (s *service) GetRandomFromSet(key string) (string, error) {
+func (s *Service) GetRandomFromSet(key string) (string, error) {
 	errors := make(chan error, 1)
 
 	var result string
@@ -386,7 +384,7 @@ func (s *service) GetRandomFromSet(key string) (string, error) {
 	return result, nil
 }
 
-func (s *service) GetStringMap(key string) (map[string]string, error) {
+func (s *Service) GetStringMap(key string) (map[string]string, error) {
 	s.logger.Log("func", "GetStringMap")
 
 	var result map[string]string
@@ -411,7 +409,7 @@ func (s *service) GetStringMap(key string) (map[string]string, error) {
 	return result, nil
 }
 
-func (s *service) Increment(key string, n float64) (float64, error) {
+func (s *Service) Increment(key string, n float64) (float64, error) {
 	var result float64
 	action := func() error {
 		conn := s.pool.Get()
@@ -434,7 +432,7 @@ func (s *service) Increment(key string, n float64) (float64, error) {
 	return result, nil
 }
 
-func (s *service) LengthOfList(key string) (int, error) {
+func (s *Service) LengthOfList(key string) (int, error) {
 	var result int
 	action := func() error {
 		conn := s.pool.Get()
@@ -457,7 +455,7 @@ func (s *service) LengthOfList(key string) (int, error) {
 	return result, nil
 }
 
-func (s *service) PopFromList(key string) (string, error) {
+func (s *Service) PopFromList(key string) (string, error) {
 	s.logger.Log("func", "PopFromList")
 
 	var result string
@@ -486,7 +484,7 @@ func (s *service) PopFromList(key string) (string, error) {
 	return result, nil
 }
 
-func (s *service) PushToList(key string, element string) error {
+func (s *Service) PushToList(key string, element string) error {
 	s.logger.Log("func", "PushToList")
 
 	action := func() error {
@@ -509,7 +507,7 @@ func (s *service) PushToList(key string, element string) error {
 	return nil
 }
 
-func (s *service) PushToSet(key string, element string) error {
+func (s *Service) PushToSet(key string, element string) error {
 	s.logger.Log("func", "PushToSet")
 
 	action := func() error {
@@ -532,7 +530,7 @@ func (s *service) PushToSet(key string, element string) error {
 	return nil
 }
 
-func (s *service) Remove(key string) error {
+func (s *Service) Remove(key string) error {
 	s.logger.Log("func", "Remove")
 
 	action := func() error {
@@ -555,7 +553,7 @@ func (s *service) Remove(key string) error {
 	return nil
 }
 
-func (s *service) RemoveFromList(key string, element string) error {
+func (s *Service) RemoveFromList(key string, element string) error {
 	action := func() error {
 		conn := s.pool.Get()
 		defer conn.Close()
@@ -576,7 +574,7 @@ func (s *service) RemoveFromList(key string, element string) error {
 	return nil
 }
 
-func (s *service) RemoveFromSet(key string, element string) error {
+func (s *Service) RemoveFromSet(key string, element string) error {
 	s.logger.Log("func", "RemoveFromSet")
 
 	action := func() error {
@@ -599,7 +597,7 @@ func (s *service) RemoveFromSet(key string, element string) error {
 	return nil
 }
 
-func (s *service) RemoveScoredElement(key string, element string) error {
+func (s *Service) RemoveScoredElement(key string, element string) error {
 	s.logger.Log("func", "RemoveScoredElement")
 
 	action := func() error {
@@ -622,7 +620,7 @@ func (s *service) RemoveScoredElement(key string, element string) error {
 	return nil
 }
 
-func (s *service) Set(key, value string) error {
+func (s *Service) Set(key, value string) error {
 	s.logger.Log("func", "Set")
 
 	action := func() error {
@@ -649,7 +647,7 @@ func (s *service) Set(key, value string) error {
 	return nil
 }
 
-func (s *service) SetElementByScore(key, element string, score float64) error {
+func (s *Service) SetElementByScore(key, element string, score float64) error {
 	s.logger.Log("func", "SetElementByScore")
 
 	action := func() error {
@@ -672,7 +670,7 @@ func (s *service) SetElementByScore(key, element string, score float64) error {
 	return nil
 }
 
-func (s *service) SetStringMap(key string, stringMap map[string]string) error {
+func (s *Service) SetStringMap(key string, stringMap map[string]string) error {
 	s.logger.Log("func", "SetStringMap")
 
 	action := func() error {
@@ -699,7 +697,7 @@ func (s *service) SetStringMap(key string, stringMap map[string]string) error {
 	return nil
 }
 
-func (s *service) Shutdown() {
+func (s *Service) Shutdown() {
 	s.logger.Log("func", "Shutdown")
 
 	s.shutdownOnce.Do(func() {
@@ -707,7 +705,7 @@ func (s *service) Shutdown() {
 	})
 }
 
-func (s *service) TrimEndOfList(key string, maxElements int) error {
+func (s *Service) TrimEndOfList(key string, maxElements int) error {
 	action := func() error {
 		conn := s.pool.Get()
 		defer conn.Close()
@@ -732,7 +730,7 @@ func (s *service) TrimEndOfList(key string, maxElements int) error {
 	return nil
 }
 
-func (s *service) WalkKeys(glob string, closer <-chan struct{}, cb func(key string) error) error {
+func (s *Service) WalkKeys(glob string, closer <-chan struct{}, cb func(key string) error) error {
 	s.logger.Log("func", "WalkKeys")
 
 	action := func() error {
@@ -791,7 +789,7 @@ func (s *service) WalkKeys(glob string, closer <-chan struct{}, cb func(key stri
 	return nil
 }
 
-func (s *service) WalkScoredSet(key string, closer <-chan struct{}, cb func(element string, score float64) error) error {
+func (s *Service) WalkScoredSet(key string, closer <-chan struct{}, cb func(element string, score float64) error) error {
 	s.logger.Log("func", "WalkScoredSet")
 
 	action := func() error {
@@ -858,7 +856,7 @@ func (s *service) WalkScoredSet(key string, closer <-chan struct{}, cb func(elem
 	return nil
 }
 
-func (s *service) WalkSet(key string, closer <-chan struct{}, cb func(element string) error) error {
+func (s *Service) WalkSet(key string, closer <-chan struct{}, cb func(element string) error) error {
 	s.logger.Log("func", "WalkSet")
 
 	action := func() error {

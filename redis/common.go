@@ -6,11 +6,11 @@ import (
 	"time"
 )
 
-func (s *service) retryErrorLogger(err error, d time.Duration) {
+func (s *Service) retryErrorLogger(err error, d time.Duration) {
 	s.logger.Log("error", fmt.Sprintf("%#v", maskAny(err)))
 }
 
-func (s *service) withPrefix(keys ...string) string {
+func (s *Service) withPrefix(keys ...string) string {
 	newKey := s.prefix
 
 	for _, k := range keys {

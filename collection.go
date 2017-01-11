@@ -11,7 +11,6 @@ import (
 
 	"github.com/the-anna-project/storage/memory"
 	"github.com/the-anna-project/storage/redis"
-	"github.com/the-anna-project/storage/spec"
 )
 
 const (
@@ -45,7 +44,7 @@ type Redis struct {
 // collection.
 type CollectionConfig struct {
 	// Dependencies.
-	BackoffFactory         func() spec.Backoff
+	BackoffFactory         func() redis.Backoff
 	InstrumentorCollection *instrumentor.Collection
 	LoggerService          logger.Service
 
@@ -79,7 +78,7 @@ func DefaultCollectionConfig() CollectionConfig {
 
 	config := CollectionConfig{
 		// Dependencies.
-		BackoffFactory: func() spec.Backoff {
+		BackoffFactory: func() redis.Backoff {
 			return &backoff.StopBackOff{}
 		},
 		InstrumentorCollection: instrumentorCollection,
@@ -119,7 +118,7 @@ func NewCollection(config CollectionConfig) (*Collection, error) {
 
 	var err error
 
-	var configurationService spec.Service
+	var configurationService Service
 	{
 		switch config.Kind {
 		case KindMemory:
@@ -142,7 +141,7 @@ func NewCollection(config CollectionConfig) (*Collection, error) {
 		}
 	}
 
-	var connectionService spec.Service
+	var connectionService Service
 	{
 		switch config.Kind {
 		case KindMemory:
@@ -165,7 +164,7 @@ func NewCollection(config CollectionConfig) (*Collection, error) {
 		}
 	}
 
-	var eventService spec.Service
+	var eventService Service
 	{
 		switch config.Kind {
 		case KindMemory:
@@ -188,7 +187,7 @@ func NewCollection(config CollectionConfig) (*Collection, error) {
 		}
 	}
 
-	var featureService spec.Service
+	var featureService Service
 	{
 		switch config.Kind {
 		case KindMemory:
@@ -211,7 +210,7 @@ func NewCollection(config CollectionConfig) (*Collection, error) {
 		}
 	}
 
-	var generalService spec.Service
+	var generalService Service
 	{
 		switch config.Kind {
 		case KindMemory:
@@ -234,7 +233,7 @@ func NewCollection(config CollectionConfig) (*Collection, error) {
 		}
 	}
 
-	var indexService spec.Service
+	var indexService Service
 	{
 		switch config.Kind {
 		case KindMemory:
@@ -257,7 +256,7 @@ func NewCollection(config CollectionConfig) (*Collection, error) {
 		}
 	}
 
-	var instrumentorService spec.Service
+	var instrumentorService Service
 	{
 		switch config.Kind {
 		case KindMemory:
@@ -280,7 +279,7 @@ func NewCollection(config CollectionConfig) (*Collection, error) {
 		}
 	}
 
-	var peerService spec.Service
+	var peerService Service
 	{
 		switch config.Kind {
 		case KindMemory:
@@ -309,7 +308,7 @@ func NewCollection(config CollectionConfig) (*Collection, error) {
 		shutdownOnce: sync.Once{},
 
 		// Public.
-		List: []spec.Service{
+		List: []Service{
 			configurationService,
 			connectionService,
 			eventService,
@@ -340,16 +339,16 @@ type Collection struct {
 	shutdownOnce sync.Once
 
 	// Public.
-	List []spec.Service
+	List []Service
 
-	Configuration spec.Service
-	Connection    spec.Service
-	Event         spec.Service
-	Feature       spec.Service
-	General       spec.Service
-	Index         spec.Service
-	Instrumentor  spec.Service
-	Peer          spec.Service
+	Configuration Service
+	Connection    Service
+	Event         Service
+	Feature       Service
+	General       Service
+	Index         Service
+	Instrumentor  Service
+	Peer          Service
 }
 
 func (c *Collection) Boot() {
