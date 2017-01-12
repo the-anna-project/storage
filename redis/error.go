@@ -30,6 +30,13 @@ func IsInvalidConfig(err error) bool {
 	return errgo.Cause(err) == invalidConfigError
 }
 
+var invalidExecutionError = errgo.New("invalid execution")
+
+// IsInvalidExecution asserts invalidExecutionError.
+func IsInvalidExecution(err error) bool {
+	return errgo.Cause(err) == invalidExecutionError
+}
+
 var notFoundError = errgo.New("not found")
 
 // IsNotFound checks whether a redis response was empty. Therefore it checks for

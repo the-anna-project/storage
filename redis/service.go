@@ -10,14 +10,16 @@ import (
 	"github.com/garyburd/redigo/redis"
 	"github.com/the-anna-project/instrumentor"
 	"github.com/the-anna-project/logger"
+	"github.com/the-anna-project/random"
 )
 
 // Config represents the configuration used to create a new storage service.
 type Config struct {
 	// Dependencies.
 	BackoffFactory         func() Backoff
-	LoggerService          logger.Service
 	InstrumentorCollection *instrumentor.Collection
+	LoggerService          logger.Service
+	RandomService          random.Service
 
 	// Settings.
 	Address string
@@ -41,8 +43,17 @@ func DefaultConfig() Config {
 
 	var loggerService logger.Service
 	{
-		loggerConfig := logger.DefaultConfig()
-		loggerService, err = logger.New(loggerConfig)
+		loggerConfig := logger.DefaultServiceConfig()
+		loggerService, err = logger.NewService(loggerConfig)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	var randomService random.Service
+	{
+		randomConfig := random.DefaultServiceConfig()
+		randomService, err = random.NewService(randomConfig)
 		if err != nil {
 			panic(err)
 		}
@@ -55,6 +66,7 @@ func DefaultConfig() Config {
 		},
 		InstrumentorCollection: instrumentorCollection,
 		LoggerService:          loggerService,
+		RandomService:          randomService,
 
 		// Settings.
 		Address: "",
@@ -77,6 +89,9 @@ func New(config Config) (*Service, error) {
 	if config.LoggerService == nil {
 		return nil, maskAnyf(invalidConfigError, "logger service must not be empty")
 	}
+	if config.RandomService == nil {
+		return nil, maskAnyf(invalidConfigError, "random service must not be empty")
+	}
 
 	// Settings.
 	if config.Address == "" && config.Pool == nil {
@@ -96,6 +111,7 @@ func New(config Config) (*Service, error) {
 		backoffFactory: config.BackoffFactory,
 		instrumentor:   config.InstrumentorCollection,
 		logger:         config.LoggerService,
+		random:         config.RandomService,
 
 		// Internals.
 		bootOnce:     sync.Once{},
@@ -115,6 +131,7 @@ type Service struct {
 	backoffFactory func() Backoff
 	instrumentor   *instrumentor.Collection
 	logger         logger.Service
+	random         random.Service
 
 	// Internals.
 	bootOnce     sync.Once
@@ -280,11 +297,24 @@ func (s *Service) GetElementsByScore(key string, score float64, maxElements int)
 func (s *Service) GetHighestScoredElements(key string, maxElements int) ([]string, error) {
 	s.logger.Log("func", "GetHighestScoredElements")
 
+	if maxElements == 0 {
+		return nil, maskAnyf(invalidExecutionError, "max elements must not be 0")
+	}
+
 	var result []string
 	var err error
 	action := func() error {
 		conn := s.pool.Get()
 		defer conn.Close()
+
+		if maxElements > 0 {
+			// Redis interprets the boundaries as inclusive numbers. We want to have
+			// absolut numbers, because the second argument provided is about the
+			// maximum number of elements. In case you want to have 1 element,
+			// providing zero in this context would not make sense. Therefore we
+			// decrement all numbers that are greater than zero.
+			maxElements--
+		}
 
 		result, err = redis.Strings(conn.Do("ZREVRANGE", s.withPrefix(key), 0, maxElements, "WITHSCORES"))
 		if err != nil {
@@ -338,6 +368,43 @@ func (s *Service) GetRandom() (string, error) {
 		}
 	default:
 		// If there is no error, we simply fall through to return the result.
+	}
+
+	return result, nil
+}
+
+func (s *Service) GetRandomFromScoredSet(key string) (string, error) {
+	var result string
+	action := func() error {
+		conn := s.pool.Get()
+		defer conn.Close()
+
+		length, err := s.LengthOfScoredSet(key)
+		if err != nil {
+			return maskAny(err)
+		}
+
+		random, err := s.random.CreateMax(length + 1)
+		if err != nil {
+			return maskAny(err)
+		}
+		index := random - 1
+
+		result, err = redis.String(conn.Do("ZRANGE", s.withPrefix(key), index, index))
+		if err != nil {
+			return maskAny(err)
+		}
+
+		return nil
+	}
+
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("GetRandomFromScoredSet", action), s.backoffFactory(), s.retryErrorLogger)
+	if err != nil {
+		return "", maskAny(err)
+	}
+
+	if result == "" {
+		return "", maskAny(notFoundError)
 	}
 
 	return result, nil
@@ -432,6 +499,29 @@ func (s *Service) Increment(key string, n float64) (float64, error) {
 	return result, nil
 }
 
+func (s *Service) IncrementScoredElement(key, element string, n float64) (float64, error) {
+	var result float64
+	action := func() error {
+		conn := s.pool.Get()
+		defer conn.Close()
+
+		var err error
+		result, err = redis.Float64(conn.Do("ZINCRBY", s.withPrefix(key), element, n))
+		if err != nil {
+			return maskAny(err)
+		}
+
+		return nil
+	}
+
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("IncrementScoredElement", action), s.backoffFactory(), s.retryErrorLogger)
+	if err != nil {
+		return 0, maskAny(err)
+	}
+
+	return result, nil
+}
+
 func (s *Service) LengthOfList(key string) (int, error) {
 	var result int
 	action := func() error {
@@ -448,6 +538,29 @@ func (s *Service) LengthOfList(key string) (int, error) {
 	}
 
 	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("LengthOfList", action), s.backoffFactory(), s.retryErrorLogger)
+	if err != nil {
+		return 0, maskAny(err)
+	}
+
+	return result, nil
+}
+
+func (s *Service) LengthOfScoredSet(key string) (int, error) {
+	var result int
+	action := func() error {
+		conn := s.pool.Get()
+		defer conn.Close()
+
+		var err error
+		result, err = redis.Int(conn.Do("ZCARD", s.withPrefix(key)))
+		if err != nil {
+			return maskAny(err)
+		}
+
+		return nil
+	}
+
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("LengthOfScoredSet", action), s.backoffFactory(), s.retryErrorLogger)
 	if err != nil {
 		return 0, maskAny(err)
 	}
