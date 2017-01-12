@@ -458,6 +458,16 @@ func Test_ScoredSetStorage_GetElementsByScore(t *testing.T) {
 	}
 }
 
+func Test_ScoredSetStorage_GetHighestScoredElements_Error_MaxElements_0(t *testing.T) {
+	newStorage := testNewStorage()
+	defer newStorage.Shutdown()
+
+	_, err := newStorage.GetHighestScoredElements("key", 0)
+	if !IsInvalidExecution(err) {
+		t.Fatal("expected", true, "got", false)
+	}
+}
+
 func Test_ScoredSetStorage_GetHighestScoredElements(t *testing.T) {
 	testCases := []struct {
 		Key         string
@@ -500,7 +510,7 @@ func Test_ScoredSetStorage_GetHighestScoredElements(t *testing.T) {
 		},
 		{
 			Key:         "mykey",
-			MaxElements: 5,
+			MaxElements: 4,
 			Elements: map[string]float64{
 				"zero.five":        0.5,
 				"zero.eight.one":   0.8,
@@ -518,13 +528,11 @@ func Test_ScoredSetStorage_GetHighestScoredElements(t *testing.T) {
 				"0.8",
 				"zero.five",
 				"0.5",
-				"zero.one",
-				"0.1",
 			},
 		},
 		{
 			Key:         "mykey",
-			MaxElements: 0,
+			MaxElements: 1,
 			Elements: map[string]float64{
 				"zero.five":        0.5,
 				"zero.eight.one":   0.8,
@@ -553,8 +561,6 @@ func Test_ScoredSetStorage_GetHighestScoredElements(t *testing.T) {
 				"0.8",
 				"zero.eight.three",
 				"0.8",
-				"zero.eight.one",
-				"0.8",
 			},
 		},
 		{
@@ -569,8 +575,6 @@ func Test_ScoredSetStorage_GetHighestScoredElements(t *testing.T) {
 			},
 			Expected: []string{
 				"zero.eight.two",
-				"0.8",
-				"zero.eight.three",
 				"0.8",
 			},
 		},
@@ -604,8 +608,6 @@ func Test_ScoredSetStorage_GetHighestScoredElements(t *testing.T) {
 				t.Fatal("case", i+1, "expected", e, "got", output[j])
 			}
 		}
-
-		newStorage.Shutdown()
 	}
 }
 

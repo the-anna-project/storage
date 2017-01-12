@@ -69,8 +69,8 @@ func DefaultCollectionConfig() CollectionConfig {
 
 	var loggerService logger.Service
 	{
-		loggerConfig := logger.DefaultConfig()
-		loggerService, err = logger.New(loggerConfig)
+		loggerConfig := logger.DefaultServiceConfig()
+		loggerService, err = logger.NewService(loggerConfig)
 		if err != nil {
 			panic(err)
 		}

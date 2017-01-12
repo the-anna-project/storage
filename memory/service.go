@@ -139,7 +139,9 @@ func (s *Service) GetElementsByScore(key string, score float64, maxElements int)
 
 func (s *Service) GetHighestScoredElements(key string, maxElements int) ([]string, error) {
 	result, err := s.redis.GetHighestScoredElements(key, maxElements)
-	if err != nil {
+	if redisstorage.IsInvalidExecution(err) {
+		return nil, maskAny(invalidExecutionError)
+	} else if err != nil {
 		return nil, maskAny(err)
 	}
 
@@ -168,6 +170,17 @@ func (s *Service) GetRandomFromSet(key string) (string, error) {
 	return result, nil
 }
 
+func (s *Service) GetRandomFromScoredSet(key string) (string, error) {
+	result, err := s.redis.GetRandomFromScoredSet(key)
+	if redisstorage.IsNotFound(err) {
+		return "", maskAny(notFoundError)
+	} else if err != nil {
+		return "", maskAny(err)
+	}
+
+	return result, nil
+}
+
 func (s *Service) GetStringMap(key string) (map[string]string, error) {
 	result, err := s.redis.GetStringMap(key)
 	if err != nil {
@@ -186,8 +199,26 @@ func (s *Service) Increment(key string, n float64) (float64, error) {
 	return result, nil
 }
 
+func (s *Service) IncrementScoredElement(key, element string, n float64) (float64, error) {
+	result, err := s.redis.IncrementScoredElement(key, element, n)
+	if err != nil {
+		return 0, maskAny(err)
+	}
+
+	return result, nil
+}
+
 func (s *Service) LengthOfList(key string) (int, error) {
 	result, err := s.redis.LengthOfList(key)
+	if err != nil {
+		return 0, maskAny(err)
+	}
+
+	return result, nil
+}
+
+func (s *Service) LengthOfScoredSet(key string) (int, error) {
+	result, err := s.redis.LengthOfScoredSet(key)
 	if err != nil {
 		return 0, maskAny(err)
 	}

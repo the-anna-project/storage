@@ -236,7 +236,7 @@ func Test_ScoredSetStorage_GetElementsByScore_Error(t *testing.T) {
 
 func Test_ScoredSetStorage_GetHighestScoredElements_Success(t *testing.T) {
 	c := redigomock.NewConn()
-	c.Command("ZREVRANGE", "prefix:foo", 0, 2, "WITHSCORES").Expect([]interface{}{
+	c.Command("ZREVRANGE", "prefix:foo", 0, 1, "WITHSCORES").Expect([]interface{}{
 		[]uint8("one"), []uint8("0.8"), []uint8("two"), []uint8("0.5"),
 	})
 
@@ -265,7 +265,7 @@ func Test_ScoredSetStorage_GetHighestScoredElements_Success(t *testing.T) {
 
 func Test_ScoredSetStorage_GetHighestScoredElements_Error(t *testing.T) {
 	c := redigomock.NewConn()
-	c.Command("ZREVRANGE", "prefix:foo", 0, 2, "WITHSCORES").ExpectError(executionFailedError)
+	c.Command("ZREVRANGE", "prefix:foo", 0, 1, "WITHSCORES").ExpectError(executionFailedError)
 
 	newStorage := testMustNewStorageWithConn(t, c)
 

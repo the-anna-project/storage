@@ -32,6 +32,13 @@ func IsInvalidConfig(err error) bool {
 	return errgo.Cause(err) == invalidConfigError
 }
 
+// IsInvalidExecution combines IsInvalidExecution error matchers of all storage
+// implementations. IsInvalidExecution should thus be used for error handling
+// wherever a storage service is used.
+func IsInvalidExecution(err error) bool {
+	return redis.IsInvalidExecution(err) || memory.IsInvalidExecution(err)
+}
+
 // IsNotFound combines IsNotFound error matchers of all storage implementations.
 // IsNotFound should thus be used for error handling wherever a storage service
 // is used.

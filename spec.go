@@ -83,13 +83,22 @@ type Service interface {
 	// GetRandomFromSet returns a random element which was formerly stored within
 	// the set identified by the given key.
 	GetRandomFromSet(key string) (string, error)
+	// GetRandomFromScoredSet returns a random element which was formerly stored
+	// within the scored set identified by the given key.
+	GetRandomFromScoredSet(key string) (string, error)
 	// GetStringMap returns the hash map stored under the given key.
 	GetStringMap(key string) (map[string]string, error)
 	// Increment increments the floating point number stored under key by the
 	// given value n.
 	Increment(key string, n float64) (float64, error)
-	// LengthOfList returns the number of items within the list given by key.
+	// IncrementScoredElement increments the floating point number stored under
+	// element within the scored set identified by key by the given value n.
+	IncrementScoredElement(key, element string, n float64) (float64, error)
+	// LengthOfList returns the number of elements within the list given by key.
 	LengthOfList(key string) (int, error)
+	// LengthOfScoredSet returns the number of elements within the scored set
+	// given by key.
+	LengthOfScoredSet(key string) (int, error)
 	// PopFromList returns the next element from the list identified by the given
 	// key. Note that a list is an ordered sequence of arbitrary elements.
 	// PushToList and PopFromList are operating according to a "first in, first
