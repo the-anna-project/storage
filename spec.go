@@ -79,6 +79,8 @@ type Service interface {
 	// Note that the resulting list will have the length of maxElements*2,
 	// because the list contains the elements and their scores.
 	//
+	// TODO check for highest score and return truley random element if highest
+	// score is 0
 	GetHighestScoredElements(key string, maxElements int) ([]string, error)
 	// GetRandom returns a random key which was formerly stored within the
 	// underlying storage.
