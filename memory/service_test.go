@@ -284,6 +284,48 @@ func Test_ListStorage_TrimEndOfList(t *testing.T) {
 	}
 }
 
+func Test_ScoredSetStorage_ExistsGetScore(t *testing.T) {
+	newStorage := testNewStorage()
+	defer newStorage.Shutdown()
+
+	ok, err := newStorage.ExistsInScoredSet("foo", "e")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if ok {
+		t.Fatal("expected", false, "got", true)
+	}
+
+	score, err := newStorage.GetScoreOfElement("foo", "e")
+	if !IsNotFound(err) {
+		t.Fatal("expected", true, "got", false)
+	}
+	if score != float64(0) {
+		t.Fatal("expected", 0, "got", score)
+	}
+
+	err = newStorage.SetElementByScore("foo", "e", 3.45)
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+
+	ok, err = newStorage.ExistsInScoredSet("foo", "e")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if !ok {
+		t.Fatal("expected", true, "got", false)
+	}
+
+	score, err = newStorage.GetScoreOfElement("foo", "e")
+	if IsNotFound(err) {
+		t.Fatal("expected", false, "got", true)
+	}
+	if score != float64(3.45) {
+		t.Fatal("expected", 0, "got", score)
+	}
+}
+
 func Test_ScoredSetStorage_GetElementsByScore(t *testing.T) {
 	testCases := []struct {
 		Key          string
@@ -1051,6 +1093,9 @@ func Test_StringStorage_Exists(t *testing.T) {
 	defer newStorage.Shutdown()
 
 	ok, err := newStorage.Exists("foo")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
 	if ok {
 		t.Fatal("expected", false, "got", true)
 	}
@@ -1061,6 +1106,9 @@ func Test_StringStorage_Exists(t *testing.T) {
 	}
 
 	ok, err = newStorage.Exists("foo")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
 	if !ok {
 		t.Fatal("expected", true, "got", false)
 	}

@@ -99,6 +99,15 @@ func (s *Service) Exists(key string) (bool, error) {
 	return result, nil
 }
 
+func (s *Service) ExistsInScoredSet(key, element string) (bool, error) {
+	result, err := s.redis.ExistsInScoredSet(key, element)
+	if err != nil {
+		return false, maskAny(err)
+	}
+
+	return result, nil
+}
+
 func (s *Service) Get(key string) (string, error) {
 	result, err := s.redis.Get(key)
 	if redisstorage.IsNotFound(err) {
@@ -176,6 +185,17 @@ func (s *Service) GetRandomFromScoredSet(key string) (string, error) {
 		return "", maskAny(notFoundError)
 	} else if err != nil {
 		return "", maskAny(err)
+	}
+
+	return result, nil
+}
+
+func (s *Service) GetScoreOfElement(key, element string) (float64, error) {
+	result, err := s.redis.GetScoreOfElement(key, element)
+	if redisstorage.IsNotFound(err) {
+		return 0, maskAny(notFoundError)
+	} else if err != nil {
+		return 0, maskAny(err)
 	}
 
 	return result, nil

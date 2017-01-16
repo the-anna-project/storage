@@ -172,9 +172,36 @@ func (s *Service) Exists(key string) (bool, error) {
 	return result, nil
 }
 
-func (s *Service) Get(key string) (string, error) {
-	s.logger.Log("func", "Get")
+func (s *Service) ExistsInScoredSet(key, element string) (bool, error) {
+	var result bool
+	action := func() error {
+		conn := s.pool.Get()
+		defer conn.Close()
 
+		_, err := redis.Float64(conn.Do("ZSCORE", s.withPrefix(key), element))
+		if IsNotFound(err) {
+			// In this case we receive a not found error. This error is a "redigo
+			// returned nil", which means that redis returned nil. Here we now know
+			// the element does not exist within the scored set.
+			return nil
+		} else if err != nil {
+			return maskAny(err)
+		}
+
+		result = true
+
+		return nil
+	}
+
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("ExistsInScoredSet", action), s.backoffFactory(), s.retryErrorLogger)
+	if err != nil {
+		return false, maskAny(err)
+	}
+
+	return result, nil
+}
+
+func (s *Service) Get(key string) (string, error) {
 	errors := make(chan error, 1)
 
 	var result string
@@ -443,6 +470,47 @@ func (s *Service) GetRandomFromSet(key string) (string, error) {
 	case err := <-errors:
 		if err != nil {
 			return "", maskAny(err)
+		}
+	default:
+		// If there is no error, we simply fall through to return the result.
+	}
+
+	return result, nil
+}
+
+func (s *Service) GetScoreOfElement(key, element string) (float64, error) {
+	errors := make(chan error, 1)
+
+	var result float64
+	action := func() error {
+		conn := s.pool.Get()
+		defer conn.Close()
+
+		var err error
+		result, err = redis.Float64(conn.Do("ZSCORE", s.withPrefix(key), element))
+		if IsNotFound(err) {
+			// To return the not found error we need to break through the retrier.
+			// Therefore we do not return the not found error here, but dispatch it to
+			// the calling goroutine. Further we simply fall through and return nil to
+			// finally stop the retrier.
+			errors <- maskAny(notFoundError)
+			return nil
+		} else if err != nil {
+			return maskAny(err)
+		}
+
+		return nil
+	}
+
+	err := backoff.RetryNotify(s.instrumentor.Publisher.WrapFunc("GetScoreOfElement", action), s.backoffFactory(), s.retryErrorLogger)
+	if err != nil {
+		return 0, maskAny(err)
+	}
+
+	select {
+	case err := <-errors:
+		if err != nil {
+			return 0, maskAny(err)
 		}
 	default:
 		// If there is no error, we simply fall through to return the result.
