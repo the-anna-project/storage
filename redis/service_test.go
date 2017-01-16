@@ -204,6 +204,48 @@ func Test_ListStorage_TrimEndOfList_Error(t *testing.T) {
 	}
 }
 
+func Test_ScoredSetStorage_ExistsInScoredSet_Success(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("ZSCORE", "prefix:foo", "e").Expect([]uint8("3.45"))
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	exists, err := newStorage.ExistsInScoredSet("foo", "e")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if !exists {
+		t.Fatal("expected", true, "got", false)
+	}
+}
+
+func Test_ScoredSetStorage_ExistsInScoredSet_NotFound(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("ZSCORE", "prefix:foo", "e").Expect(nil)
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	exists, err := newStorage.ExistsInScoredSet("foo", "e")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if exists {
+		t.Fatal("expected", false, "got", true)
+	}
+}
+
+func Test_ScoredSetStorage_ExistsInScoredSet_Error(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("ZSCORE", "prefix:foo", "e").ExpectError(executionFailedError)
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	_, err := newStorage.ExistsInScoredSet("foo", "e")
+	if !IsExecutionFailed(err) {
+		t.Fatal("expected", true, "got", false)
+	}
+}
+
 func Test_ScoredSetStorage_GetElementsByScore_Success(t *testing.T) {
 	c := redigomock.NewConn()
 	c.Command("ZREVRANGEBYSCORE", "prefix:foo", 0.8, 0.8, "LIMIT", 0, 3).Expect([]interface{}{[]uint8("bar")})
@@ -270,6 +312,45 @@ func Test_ScoredSetStorage_GetHighestScoredElements_Error(t *testing.T) {
 	newStorage := testMustNewStorageWithConn(t, c)
 
 	_, err := newStorage.GetHighestScoredElements("foo", 2)
+	if !IsExecutionFailed(err) {
+		t.Fatal("expected", true, "got", false)
+	}
+}
+
+func Test_ScoredSetStorage_GetScoreOfElement_Success(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("ZSCORE", "prefix:foo", "e").Expect([]uint8("3.45"))
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	score, err := newStorage.GetScoreOfElement("foo", "e")
+	if err != nil {
+		t.Fatal("expected", nil, "got", err)
+	}
+	if score != 3.45 {
+		t.Fatal("expected", 3.45, "got", score)
+	}
+}
+
+func Test_ScoredSetStorage_GetScoreOfElement_NotFound(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("ZSCORE", "prefix:foo", "e").Expect(nil)
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	_, err := newStorage.GetScoreOfElement("foo", "e")
+	if !IsNotFound(err) {
+		t.Fatal("expected", true, "got", false)
+	}
+}
+
+func Test_ScoredSetStorage_GetScoreOfElement_Error(t *testing.T) {
+	c := redigomock.NewConn()
+	c.Command("ZSCORE", "prefix:foo", "e").ExpectError(executionFailedError)
+
+	newStorage := testMustNewStorageWithConn(t, c)
+
+	_, err := newStorage.GetScoreOfElement("foo", "e")
 	if !IsExecutionFailed(err) {
 		t.Fatal("expected", true, "got", false)
 	}
