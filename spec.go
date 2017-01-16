@@ -47,8 +47,11 @@ type Service interface {
 	// might want to call it in a separate goroutine.
 	Boot()
 	// Exists checks whether a given key exists. The existence check does not rely
-	// on a specific type.
+	// on a specific data structure type.
 	Exists(key string) (bool, error)
+	// ExistsInScoredSet checks whether a given element exists within the scored
+	// set identified by the given key.
+	ExistsInScoredSet(key, element string) (bool, error)
 	// Get returns data associated with key. This is a simple key-value
 	// relationship.
 	Get(key string) (string, error)
@@ -86,6 +89,10 @@ type Service interface {
 	// GetRandomFromScoredSet returns a random element which was formerly stored
 	// within the scored set identified by the given key.
 	GetRandomFromScoredSet(key string) (string, error)
+	// GetScoreOfElement returns the score of the element within the scored set
+	// identified by the given key. In case there does no element exist,
+	// GetScoreOfElement returns a not found error.
+	GetScoreOfElement(key, element string) (float64, error)
 	// GetStringMap returns the hash map stored under the given key.
 	GetStringMap(key string) (map[string]string, error)
 	// Increment increments the floating point number stored under key by the
